@@ -429,6 +429,14 @@ export default function NewOrder() {
     init();
   }, [routeOrderId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const isEdit = !!editOrderId || !!routeOrderId || params.has('edit');
+    if (isEdit) document.body.classList.add('hide-mobile-bottom-bar');
+    return () => { document.body.classList.remove('hide-mobile-bottom-bar'); };
+  }, [editOrderId, routeOrderId]);
+
   const loadOrderIntoForm = (ord: Order, currentDealers?: Dealer[], currentProducts?: Product[]) => {
     const effectiveDealers = currentDealers || dealers;
     const effectiveProducts = currentProducts || products;
