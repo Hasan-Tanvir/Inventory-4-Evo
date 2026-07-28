@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Inventory Evo</string>
+    <string name="title_activity_main">Inventory Evo</string>
+    <string name="package_name">com.hasantanvir.inventoryevo</string>
+    <string name="custom_url_scheme">com.hasantanvir.inventoryevo</string>
+</resources>

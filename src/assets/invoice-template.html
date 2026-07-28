@@ -1,0 +1,3870 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --primary: #667eea;
+      --secondary: #764ba2;
+      --sidebar-bg: #1a202c;
+      --text: #2d3748;
+      --border: #e2e8f0;
+      --bg: #f5f7fa;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+    }
+    
+    /* ── Login ── */
+    #loginScreen {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    #loginScreen.hidden { display: none !important; }
+
+    .login-box {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-logo { text-align: center; margin-bottom: 28px; }
+    .login-logo img { max-width: 100px; max-height: 70px; object-fit: contain; }
+    .login-logo h1 { font-size: 22px; margin-top: 12px; color: var(--text); font-weight: 600; }
+    .login-error {
+      background: #fff5f5; color: #c53030;
+      border: 1px solid #feb2b2; border-radius: 6px;
+      padding: 10px 14px; font-size: 13px;
+      margin-bottom: 14px; display: none;
+    }
+    .login-btn {
+      width: 100%; padding: 11px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white; border: none; border-radius: 6px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+    .login-spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white; border-radius: 50%;
+      animation: spin 0.7s linear infinite; display: none;
+    }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: var(--sidebar-bg);
+      color: white;
+      height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .sidebar-logo {
+      max-width: 70px;
+      max-height: 50px;
+      object-fit: contain;
+      margin-bottom: 8px;
+    }
+    
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 600;
+      word-break: break-word;
+    }
+    
+    .nav-menu { flex: 1; padding: 12px 0; }
+    
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      color: rgba(255,255,255,0.7);
+      cursor: pointer;
+      transition: all 0.3s;
+      border-left: 3px solid transparent;
+      gap: 10px;
+      font-size: 13px;
+    }
+    
+    .nav-item:hover, .nav-item.active {
+      background: rgba(255,255,255,0.05);
+      color: white;
+      border-left-color: var(--primary);
+    }
+    
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    
+    .user-info { flex: 1; overflow: hidden; }
+    .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role { font-size: 11px; color: rgba(255,255,255,0.6); }
+    
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      margin-left: 260px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .top-bar {
+      background: white;
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    
+    .page-title { font-size: 18px; font-weight: 700; }
+    
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .active-users {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #48bb78;
+    }
+    
+    .active-users::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: #48bb78;
+      border-radius: 50%;
+    }
+    
+    .content-area { flex: 1; padding: 20px; overflow-y: auto; }
+    
+    .content-section { display: none; animation: fadeIn 0.3s ease; }
+    .content-section.active { display: block; }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Cards */
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    
+    .card-title { font-size: 16px; font-weight: 600; }
+    
+    /* Buttons */
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: #48bb78; color: white; }
+    .btn-danger { background: #f56565; color: white; }
+    .btn-secondary { background: #edf2f7; color: #4a5568; }
+    
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    
+    /* Forms */
+    .form-group { margin-bottom: 16px; }
+    
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+    
+    select.form-control { cursor: pointer; }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    
+    /* Tables */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    
+    th {
+      background: #f7fafc;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #4a5568;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #edf2f7;
+    }
+    
+    tr:hover { background: #f7fafc; }
+    
+    .badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .badge-success { background: #c6f6d5; color: #22543d; }
+    .badge-warning { background: #feebc8; color: #744210; }
+    .badge-danger { background: #fed7d7; color: #742a2a; }
+    .badge-info { background: #bee3f8; color: #2c5282; }
+    
+    /* Order Items Table */
+    .items-table {
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    
+    .items-table th {
+      background: #edf2f7;
+      padding: 10px;
+      font-size: 11px;
+    }
+    
+    .items-table td {
+      padding: 8px;
+    }
+    
+    .items-table input, .items-table select {
+      width: 100%;
+      padding: 6px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .stock-display {
+      font-size: 11px;
+      color: #718096;
+      margin-top: 2px;
+    }
+    
+    .stock-display span {
+      margin-right: 8px;
+    }
+    
+    .remove-btn {
+      color: #f56565;
+      cursor: pointer;
+      font-size: 18px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+    
+    .remove-btn:hover { background: #fed7d7; }
+    
+    /* Summary Box */
+    .summary-box {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
+    }
+    
+    .summary-item h4 {
+      font-size: 11px;
+      opacity: 0.9;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    
+    .summary-item p {
+      font-size: 20px;
+      font-weight: 700;
+    }
+    
+    /* Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 16px;
+      border-radius: 10px;
+      border-left: 3px solid var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card h3 {
+      font-size: 13px;
+      color: #718096;
+      margin-bottom: 6px;
+    }
+    
+    .stat-card p {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    
+    /* Autocomplete */
+    .autocomplete-wrapper { position: relative; }
+    
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-top: 4px;
+    }
+    
+    .autocomplete-item {
+      padding: 10px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #edf2f7;
+      font-size: 13px;
+    }
+    
+    .autocomplete-item:hover { background: #f7fafc; }
+    
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.active { display: flex; }
+    
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 700px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .modal-title { font-size: 18px; font-weight: 600; }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #a0aec0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+    }
+    
+    .close-btn:hover { background: #f7fafc; color: var(--text); }
+    
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+    
+    /* Invoice Print */
+    @media print {
+      body * { visibility: hidden; }
+      .invoice-print-area, .invoice-print-area * { visibility: visible; }
+      .invoice-print-area {
+        position: absolute;
+        left: 0; top: 0;
+        width: 210mm;
+        padding: 15mm !important;
+        margin: 0 !important;
+      }
+    }
+    
+    .invoice-paper {
+      width: 210mm;
+      padding: 15mm;
+      margin: 0 auto;
+      background: white;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #000;
+    }
+    
+    .invoice-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #000;
+    }
+    
+    .invoice-company h2 {
+      font-size: 22px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    
+    .invoice-company p {
+      margin: 2px 0;
+      font-size: 10px;
+    }
+    
+    .invoice-meta {
+      text-align: right;
+    }
+    
+    .invoice-meta h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+    
+    .invoice-meta p { margin: 3px 0; font-size: 10px; }
+    
+    .invoice-party {
+      margin-bottom: 24px;
+    }
+    
+    .invoice-party h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #000;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+    
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    
+    .invoice-table th, .invoice-table td {
+      border: 1px solid #000;
+      padding: 6px;
+      text-align: left;
+      font-size: 10px;
+    }
+    
+    .invoice-table th { background: #f5f5f5; }
+    .text-right { text-align: right; }
+    
+    .invoice-totals {
+      width: 280px;
+      margin-left: auto;
+    }
+    
+    .invoice-totals table { width: 100%; }
+    .invoice-totals td { padding: 4px; font-size: 10px; }
+    .grand-total { font-size: 12px; font-weight: bold; border-top: 2px solid #000; }
+    
+    /* Quote specific */
+    .quote-watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-size: 60px;
+      color: rgba(200,0,0,0.1);
+      border: 3px solid rgba(200,0,0,0.2);
+      padding: 20px 40px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      pointer-events: none;
+    }
+    
+    /* Stock Balance */
+    .balance-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    
+    .balance-card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .balance-card h3 {
+      font-size: 14px;
+      color: #718096;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    
+    .balance-amount {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    
+    .balance-positive { color: #48bb78; }
+    .balance-negative { color: #f56565; }
+    
+    .balance-details {
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    
+    .balance-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    
+    .balance-row span:first-child { color: #718096; }
+    .balance-row span:last-child { font-weight: 600; }
+    
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #2d3748;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      z-index: 2000;
+      font-size: 14px;
+    }
+    
+    .toast.show { display: flex; }
+    .toast.success { background: #48bb78; }
+    .toast.error { background: #f56565; }
+    
+    /* Utility */
+    .hidden { display: none !important; }
+    .text-center { text-align: center; }
+    .mt-4 { margin-top: 16px; }
+    .mb-4 { margin-bottom: 16px; }
+    
+    /* Color picker */
+    .color-picker {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .color-option {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 3px solid transparent;
+    }
+    
+    .color-option.active {
+      border-color: #000;
+      box-shadow: 0 0 0 2px white, 0 0 0 4px #000;
+    }
+    
+    .logo-preview {
+      width: 100px;
+      height: 70px;
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    
+    .logo-preview img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    
+    .hint {
+      font-size: 12px;
+      color: #718096;
+      margin-top: 6px;
+    }
+    
+    /* Loading */
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    
+    .loading-overlay.active { display: flex; }
+  </style>
+</head>
+<body>
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading"></div>
+  </div>
+
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <div class="login-box">
+      <div class="login-logo">
+        <img id="loginLogo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23667eea' width='100' height='100' rx='15'/%3E%3Ctext x='50' y='65' font-size='45' text-anchor='middle' fill='white'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E" alt="Logo">
+        <h1 id="loginTitle">Inventory Management</h1>
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <div class="form-group">
+        <label>User ID</label>
+        <input type="text" id="loginUserId" class="form-control" placeholder="Enter your user ID" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="loginPassword" class="form-control" placeholder="Enter your password" autocomplete="current-password">
+      </div>
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">
+        <span id="loginBtnText">Login</span>
+        <div class="login-spinner" id="loginSpinner"></div>
+      </button>
+      <p class="hint" style="text-align:center; margin-top:14px; font-size:12px; color:#718096;">Default: admin / admin123</p>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar" style="display:none;">
+    <div class="sidebar-header">
+      <img id="sidebarLogo" class="sidebar-logo" src="" alt="">
+      <div class="sidebar-title" id="sidebarTitle">Inventory System</div>
+    </div>
+    
+    <nav class="nav-menu">
+      <div class="nav-item active" onclick="showSection('dashboard')">
+        <span>📊</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="showSection('dealers')">
+        <span>🏪</span> Dealers
+      </div>
+      <div class="nav-item" onclick="showSection('products')">
+        <span>📦</span> Products
+      </div>
+      <div class="nav-item" onclick="showSection('orders')">
+        <span>🛒</span> New Order
+      </div>
+      <div class="nav-item" onclick="showSection('retail')">
+        <span>🏷️</span> Retail Sales
+      </div>
+      <div class="nav-item" onclick="showSection('stock')">
+        <span>📋</span> Stock Entry
+      </div>
+      <div class="nav-item" onclick="showSection('transfer')">
+        <span>🚚</span> Stock Transfer
+      </div>
+      <div class="nav-item" onclick="showSection('balance')">
+        <span>📈</span> Balance
+      </div>
+      <div class="nav-item" onclick="showSection('payments')">
+        <span>💳</span> Payments
+      </div>
+      <div class="nav-item" onclick="showSection('stockBalance')">
+        <span>💰</span> Stock Balance
+      </div>
+      <div class="nav-item" onclick="showSection('invoices')">
+        <span>📄</span> Invoices
+      </div>
+      <div class="nav-item" onclick="showSection('giveaway')">
+        <span>🎁</span> Giveaway
+      </div>
+      <div class="nav-item" onclick="showSection('reports')">
+        <span>📑</span> Reports
+      </div>
+      <div class="nav-item" onclick="showSection('customize')">
+        <span>⚙️</span> Customize
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-card" onclick="openProfileModal()">
+        <img id="currentUserPhoto" class="user-avatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle fill='%23cbd5e0' cx='50' cy='50' r='50'/%3E%3Ctext x='50' y='60' font-size='40' text-anchor='middle' fill='white'%3E👤%3C/text%3E%3C/svg%3E" alt="User">
+        <div class="user-info">
+          <div class="user-name" id="currentUserName">Admin</div>
+          <div class="user-role" id="currentUserId">admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent" style="display:none;">
+    <div class="top-bar">
+      <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      <div class="top-actions">
+        <div class="active-users">
+          <span id="activeUserCount">1</span> Active
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <!-- Dashboard -->
+      <div id="dashboard" class="content-section active">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h3>Total Dealers</h3>
+            <p id="dashDealers">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Active Products</h3>
+            <p id="dashProducts">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Today's Orders</h3>
+            <p id="dashOrders">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Total Receivable</h3>
+            <p id="dashReceivable">0</p>
+          </div>
+        </div>
+        
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Recent Orders</h2>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Date</th>
+                  <th>Party</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recentOrdersTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dealers -->
+      <div id="dealers" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Dealers</h2>
+            <button class="btn btn-primary" onclick="openDealerModal()">+ Add Dealer</button>
+          </div>
+          <div class="form-group">
+            <input type="text" id="dealerSearch" class="form-control" placeholder="Search dealers..." onkeyup="renderDealers()">
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Address</th>
+                  <th>Phone</th>
+                  <th>Officer</th>
+                  <th>Balance</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="dealersTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Products -->
+      <div id="products" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Products</h2>
+            <button class="btn btn-primary" onclick="openProductModal()">+ Add Product</button>
+          </div>
+          <div class="form-group">
+            <input type="text" id="productSearch" class="form-control" placeholder="Search products..." onkeyup="renderProducts()">
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Version</th>
+                  <th>Stock (D/CTG)</th>
+                  <th>Retail</th>
+                  <th>Slabs</th>
+                  <th>Commission</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="productsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders -->
+      <div id="orders" class="content-section">
+        <div class="card">
+          <h2 class="card-title mb-4">New Order</h2>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Order Date</label>
+              <input type="date" id="orderDate" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Order Type</label>
+              <select id="orderType" class="form-control" onchange="toggleOrderType()">
+                <option value="dealer">Dealer Order</option>
+                <option value="retail">Retail Order</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Inventory Source</label>
+              <select id="inventorySource" class="form-control" onchange="changeInventorySource()">
+                <option value="dhaka">Dhaka</option>
+                <option value="chittagong">Chittagong</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="dealerSection">
+            <div class="form-group autocomplete-wrapper">
+              <label>Select Dealer</label>
+              <input type="text" id="dealerSearchInput" class="form-control" placeholder="Search..." onkeyup="searchDealerForOrder()">
+              <div id="dealerAutocomplete" class="autocomplete-list" style="display:none;"></div>
+              <div id="selectedDealerInfo" class="card" style="display:none; margin-top:8px; padding:12px;">
+                <strong id="selDealerName"></strong>
+                <div id="selDealerDetails" style="font-size:12px; color:#718096; margin-top:4px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="retailSection" style="display:none;">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Customer Name</label>
+                <input type="text" id="retailCustomerName" class="form-control">
+              </div>
+              <div class="form-group">
+                <label>Phone</label>
+                <input type="text" id="retailCustomerPhone" class="form-control">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Address</label>
+              <textarea id="retailCustomerAddress" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+
+          <h3 style="margin:20px 0 12px; font-size:14px;">Order Items</h3>
+          
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width:30%;">Product</th>
+                <th style="width:12%;">Qty</th>
+                <th style="width:15%;">Price</th>
+                <th style="width:15%;">Total</th>
+                <th style="width:15%;" class="location-header">Location</th>
+                <th style="width:8%;"></th>
+              </tr>
+            </thead>
+            <tbody id="orderItemsBody"></tbody>
+          </table>
+          
+          <button class="btn btn-secondary btn-sm" onclick="addOrderItem()">+ Add Item</button>
+
+          <div class="form-row mt-4">
+            <div class="form-group">
+              <label>Discount</label>
+              <input type="number" id="orderDiscount" class="form-control" value="0" onchange="calculateOrderTotal()">
+            </div>
+            <div class="form-group">
+              <label>Extra</label>
+              <input type="number" id="orderExtra" class="form-control" value="0" onchange="calculateOrderTotal()">
+            </div>
+            <div class="form-group">
+              <label>Notes</label>
+              <input type="text" id="orderNotes" class="form-control">
+            </div>
+          </div>
+
+          <div class="summary-box">
+            <div class="summary-grid">
+              <div class="summary-item">
+                <h4>Subtotal</h4>
+                <p id="subtotalAmount">0</p>
+              </div>
+              <div class="summary-item">
+                <h4>Discount</h4>
+                <p id="discountAmount">0</p>
+              </div>
+              <div class="summary-item">
+                <h4>Extra</h4>
+                <p id="extraAmount">0</p>
+              </div>
+              <div class="summary-item">
+                <h4>Net Total</h4>
+                <p id="netTotalAmount">0</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px;">
+            <button class="btn btn-secondary" onclick="showQuote()">Show as Quote</button>
+            <button class="btn btn-success" onclick="placeOrder()">Place Order</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retail Sales -->
+      <div id="retail" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Retail Sales</h2>
+            <button class="btn btn-primary" onclick="openRetailEntryModal()">+ Data Entry</button>
+          </div>
+          
+          <div class="form-row" style="margin-bottom:16px;">
+            <div class="form-group">
+              <label>Location</label>
+              <select id="retailViewLocation" class="form-control" onchange="renderRetailSales()">
+                <option value="dhaka">Dhaka</option>
+                <option value="chittagong">Chittagong</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <h3>Total Sales</h3>
+              <p id="retailTotalSales">0</p>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Phone</th>
+                  <th>Amount</th>
+                  <th>Adjustment</th>
+                  <th>Final</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="retailTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stock Entry -->
+      <div id="stock" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Stock Entry</h2>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="entryDate" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Product</label>
+              <select id="entryProduct" class="form-control" onchange="loadProductStock()">
+                <option value="">Select...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Location</label>
+              <select id="entryLocation" class="form-control" onchange="loadProductStock()">
+                <option value="dhaka">Dhaka</option>
+                <option value="chittagong">Chittagong</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Current Stock</label>
+              <input type="text" id="currentStock" class="form-control" readonly style="background:#f7fafc;">
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Quantity (+/-)</label>
+              <input type="number" id="entryQty" class="form-control">
+            </div>
+            <div class="form-group" style="grid-column:span 3;">
+              <label>Notes</label>
+              <input type="text" id="entryNotes" class="form-control">
+            </div>
+          </div>
+
+          <div style="text-align:right;">
+            <button class="btn btn-primary" onclick="saveStockEntry()">Save Entry</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stock Transfer -->
+      <div id="transfer" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Stock Transfer</h2>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="transferDate" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>From</label>
+              <select id="transferFrom" class="form-control" onchange="updateTransferTo()">
+                <option value="dhaka">Dhaka</option>
+                <option value="chittagong">Chittagong</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>To</label>
+              <input type="text" id="transferTo" class="form-control" readonly>
+            </div>
+          </div>
+
+          <h3 style="margin:16px 0 12px; font-size:14px;">Transfer Items</h3>
+          <div id="transferItems"></div>
+          <button class="btn btn-secondary btn-sm" onclick="addTransferItem()">+ Add Product</button>
+
+          <div style="text-align:right; margin-top:20px;">
+            <button class="btn btn-success" onclick="saveTransfer()">Execute Transfer</button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Payments -->
+      <div id="payments" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Payments</h2>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group autocomplete-wrapper">
+              <label>Dealer</label>
+              <input type="text" id="paymentDealerSearch" class="form-control" placeholder="Search dealer..." onkeyup="searchDealerForPayment()">
+              <div id="paymentDealerAutocomplete" class="autocomplete-list" style="display:none;"></div>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="paymentDate" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Payment Type</label>
+              <select id="paymentType" class="form-control" onchange="togglePaymentFields()">
+                <option value="cash">Cash</option>
+                <option value="bank">Bank Transfer</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group" id="bankNameGroup" style="display:none;">
+              <label>Bank Name</label>
+              <input type="text" id="paymentBankName" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Reference / Cheque No.</label>
+              <input type="text" id="paymentReference" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Amount</label>
+              <input type="number" id="paymentAmount" class="form-control" min="0">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="paymentNotes" class="form-control" rows="2"></textarea>
+          </div>
+
+          <div style="text-align:right; margin-bottom:20px;">
+            <button class="btn btn-success" onclick="savePayment()">Save Payment</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Dealer</th>
+                  <th>Type</th>
+                  <th>Bank</th>
+                  <th>Reference</th>
+                  <th>Amount</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="paymentsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Balance -->
+      <div id="balance" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Party Balance</h2>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Party</label>
+              <select id="balanceParty" class="form-control">
+                <option value="">Select Dealer...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>From Date</label>
+              <input type="date" id="balanceFromDate" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>To Date</label>
+              <input type="date" id="balanceToDate" class="form-control">
+            </div>
+            <div class="form-group" style="display:flex; align-items:end;">
+              <button class="btn btn-primary" onclick="loadBalance()" style="width:100%;">View</button>
+            </div>
+          </div>
+
+          <div id="balanceSummary" style="display:none;">
+            <div class="stats-grid" style="margin:20px 0;">
+              <div class="stat-card">
+                <h3>Total Orders</h3>
+                <p id="balTotalOrders">0</p>
+              </div>
+              <div class="stat-card">
+                <h3>Total Payments</h3>
+                <p id="balTotalPayments">0</p>
+              </div>
+              <div class="stat-card">
+                <h3>Balance</h3>
+                <p id="balCurrentBalance">0</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Reference</th>
+                  <th>Description</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Balance</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="balanceTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stock Balance -->
+      <div id="stockBalance" class="content-section">
+        <div class="balance-cards">
+          <div class="balance-card">
+            <h3>Dhaka Stock Value</h3>
+            <div class="balance-amount" id="dhakaStockValue">0</div>
+            <div class="balance-details">
+              <div class="balance-row">
+                <span>Total Sold</span>
+                <span id="dhakaSold">0</span>
+              </div>
+              <div class="balance-row">
+                <span>Sent to Main</span>
+                <span id="dhakaSent">0</span>
+              </div>
+              <div class="balance-row">
+                <span>Due Amount</span>
+                <span id="dhakaDue" class="balance-negative">0</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" style="width:100%; margin-top:12px;" onclick="openMainAccountEntry('dhaka')">
+              + Add Main Account Entry
+            </button>
+          </div>
+
+          <div class="balance-card">
+            <h3>Chittagong Stock Value</h3>
+            <div class="balance-amount" id="ctgStockValue">0</div>
+            <div class="balance-details">
+              <div class="balance-row">
+                <span>Total Sold</span>
+                <span id="ctgSold">0</span>
+              </div>
+              <div class="balance-row">
+                <span>Sent to Main</span>
+                <span id="ctgSent">0</span>
+              </div>
+              <div class="balance-row">
+                <span>Due Amount</span>
+                <span id="ctgDue" class="balance-negative">0</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" style="width:100%; margin-top:12px;" onclick="openMainAccountEntry('chittagong')">
+              + Add Main Account Entry
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Main Account Entries</h3>
+          <div class="form-row" style="margin-bottom:16px;">
+            <div class="form-group">
+              <label>Filter by Location</label>
+              <select id="mainEntryFilter" class="form-control" onchange="renderMainAccountEntries()">
+                <option value="all">All</option>
+                <option value="dhaka">Dhaka</option>
+                <option value="chittagong">Chittagong</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Location</th>
+                  <th>Amount</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="mainAccountTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoices -->
+      <div id="invoices" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Invoices</h2>
+          </div>
+          
+          <div class="form-group" style="max-width:400px;">
+            <label>Select Order</label>
+            <select id="invoiceSelect" class="form-control" onchange="previewInvoice()">
+              <option value="">Select...</option>
+            </select>
+          </div>
+
+          <div id="invoicePreview" style="margin-top:20px;"></div>
+        </div>
+      </div>
+
+      <!-- Giveaway -->
+      <div id="giveaway" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Giveaway</h2>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="giveawayDate" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Product</label>
+              <select id="giveawayProduct" class="form-control">
+                <option value="">Select...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Quantity</label>
+              <input type="number" id="giveawayQty" class="form-control" min="1">
+            </div>
+            <div class="form-group">
+              <label>Location</label>
+              <select id="giveawayLocation" class="form-control">
+                <option value="dhaka">Dhaka</option>
+                <option value="chittagong">Chittagong</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="giveawayNotes" class="form-control" rows="2"></textarea>
+          </div>
+
+          <div style="text-align:right; margin-bottom:20px;">
+            <button class="btn btn-success" onclick="saveGiveaway()">Record</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Location</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="giveawayTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reports -->
+      <div id="reports" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Reports</h2>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Report Type</label>
+              <select id="reportType" class="form-control" onchange="updateReportFilters()">
+                <option value="sales">Sales Report</option>
+                <option value="stock">Stock Entry Report</option>
+                <option value="transfer">Transfer Report</option>
+                <option value="payment">Payment Report</option>
+              </select>
+            </div>
+            <div class="form-group" id="reportFilterGroup">
+              <label id="reportFilterLabel">Filter</label>
+              <select id="reportFilter" class="form-control">
+                <option value="all">All</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>From Date</label>
+              <input type="date" id="reportFromDate" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>To Date</label>
+              <input type="date" id="reportToDate" class="form-control">
+            </div>
+            <div class="form-group" style="display:flex; align-items:end;">
+              <button class="btn btn-primary" onclick="generateReport()" style="width:100%;">Generate</button>
+            </div>
+          </div>
+
+          <div id="reportResults" style="display:none;">
+            <div class="stats-grid" style="margin:20px 0;">
+              <div class="stat-card">
+                <h3 id="repMetric1Label">Total Qty</h3>
+                <p id="repMetric1">0</p>
+              </div>
+              <div class="stat-card">
+                <h3 id="repMetric2Label">Total Amount</h3>
+                <p id="repMetric2">0</p>
+              </div>
+              <div class="stat-card" id="repMetric3Card">
+                <h3 id="repMetric3Label">Commission</h3>
+                <p id="repMetric3">0</p>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table>
+                <thead id="reportTableHead"></thead>
+                <tbody id="reportTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Customize -->
+      <div id="customize" class="content-section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Customize Software</h2>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Company Name</label>
+              <input type="text" id="customTitle" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Executive Name</label>
+              <input type="text" id="execName" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Executive Details</label>
+              <input type="text" id="execDetails" class="form-control" placeholder="Phone, Email, etc.">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Logo (120x80px recommended)</label>
+            <input type="file" id="customLogo" class="form-control" accept="image/*" onchange="previewLogo()">
+            <div class="logo-preview" id="logoPreview">
+              <span style="color:#a0aec0; font-size:12px;">No logo</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Theme Color</label>
+            <div class="color-picker">
+              <div class="color-option active" style="background:linear-gradient(135deg, #667eea, #764ba2)" onclick="selectTheme('default')"></div>
+              <div class="color-option" style="background:linear-gradient(135deg, #f093fb, #f5576c)" onclick="selectTheme('pink')"></div>
+              <div class="color-option" style="background:linear-gradient(135deg, #4facfe, #00f2fe)" onclick="selectTheme('blue')"></div>
+              <div class="color-option" style="background:linear-gradient(135deg, #43e97b, #38f9d7)" onclick="selectTheme('green')"></div>
+              <div class="color-option" style="background:linear-gradient(135deg, #fa709a, #fee140)" onclick="selectTheme('orange')"></div>
+              <div class="color-option" style="background:linear-gradient(135deg, #30cfd0, #330867)" onclick="selectTheme('dark')"></div>
+            </div>
+          </div>
+
+          <div style="text-align:right;">
+            <button class="btn btn-success" onclick="saveCustomization()">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modals -->
+  <div id="dealerModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Add/Edit Dealer</h3>
+        <button class="close-btn" onclick="closeModal('dealerModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="dealerId">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="dealerName" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Address</label>
+          <textarea id="dealerAddress" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="text" id="dealerPhone" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Officer</label>
+          <input type="text" id="dealerOfficer" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('dealerModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveDealer()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="productModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Add/Edit Product</h3>
+        <button class="close-btn" onclick="closeModal('productModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="productId">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="productName" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Version</label>
+            <input type="text" id="productVersion" class="form-control">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Retail Price</label>
+            <input type="number" id="productRetailPrice" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Commission (Fixed)</label>
+            <input type="number" id="productCommission" class="form-control" value="0">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="productStatus" class="form-control">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+        
+        <h4 style="margin:16px 0 12px; font-size:14px;">Price Slabs</h4>
+        <div id="priceSlabs"></div>
+        <button class="btn btn-secondary btn-sm" onclick="addPriceSlab()">+ Add Slab</button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('productModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveProduct()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="profileModal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Profile Settings</h3>
+        <button class="close-btn" onclick="closeModal('profileModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center mb-4">
+          <img id="profilePhotoPreview" class="user-avatar" style="width:80px; height:80px;" src="" alt="">
+          <div class="mt-2">
+            <input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="updateProfilePhoto()">
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('profilePhotoInput').click()">Change Photo</button>
+          </div>
+          <p class="hint">Recommended: 200x200px</p>
+        </div>
+        
+        <div class="form-group">
+          <label>User Name</label>
+          <input type="text" id="profileName" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>User ID</label>
+          <input type="text" id="profileId" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>New Password (leave blank to keep)</label>
+          <input type="password" id="profilePassword" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" id="profilePasswordConfirm" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('profileModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveProfile()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewOrderModal" class="modal">
+    <div class="modal-content" style="max-width:700px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Order Details</h3>
+        <button class="close-btn" onclick="closeModal('viewOrderModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="viewOrderContent"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('viewOrderModal')">Close</button>
+        <button class="btn btn-primary" onclick="printCurrentOrder()">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="retailEntryModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Retail Sale Entry</h3>
+        <button class="close-btn" onclick="closeModal('retailEntryModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="retailEntryDate" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Location</label>
+            <select id="retailEntryLocation" class="form-control">
+              <option value="dhaka">Dhaka</option>
+              <option value="chittagong">Chittagong</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Customer Name</label>
+            <input type="text" id="retailEntryCustomer" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" id="retailEntryPhone" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Address</label>
+          <textarea id="retailEntryAddress" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount</label>
+            <input type="number" id="retailEntryAmount" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Adjustment (+/-)</label>
+            <input type="number" id="retailEntryAdjustment" class="form-control" value="0">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('retailEntryModal')">Cancel</button>
+        <button class="btn btn-success" onclick="saveRetailEntry()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adjustmentModal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Adjustment</h3>
+        <button class="close-btn" onclick="closeModal('adjustmentModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="adjustmentOrderId">
+        <div class="form-group">
+          <label>Current Amount</label>
+          <input type="text" id="adjustmentCurrent" class="form-control" readonly>
+        </div>
+        <div class="form-group">
+          <label>Adjustment (+/-)</label>
+          <input type="number" id="adjustmentValue" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>New Final Amount</label>
+          <input type="text" id="adjustmentNew" class="form-control" readonly>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('adjustmentModal')">Cancel</button>
+        <button class="btn btn-success" onclick="saveAdjustment()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainAccountModal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Main Account Entry</h3>
+        <button class="close-btn" onclick="closeModal('mainAccountModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="mainEntryLocation">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="mainEntryDate" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Amount</label>
+          <input type="number" id="mainEntryAmount" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="mainEntryNotes" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('mainAccountModal')">Cancel</button>
+        <button class="btn btn-success" onclick="saveMainAccountEntry()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quote Modal -->
+  <div id="quoteModal" class="modal">
+    <div class="modal-content" style="max-width:850px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Quote Preview (Not Saved)</h3>
+        <button class="close-btn" onclick="closeModal('quoteModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="quoteContent"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('quoteModal')">Close</button>
+        <button class="btn btn-primary" onclick="printQuote()">Print Quote</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <span id="toastMessage"></span>
+  </div>
+
+  <script>
+    // ── v3.0 ── if you see this in DevTools Sources, the correct file is loaded
+    // Global variables
+    let currentUser = null;
+    let users = [];
+    let dealers = [];
+    let products = [];
+    let orders = [];
+    let payments = [];
+    let inventory = [];
+    let giveaways = [];
+    let retailSales = [];
+    let stockEntries = [];
+    let stockTransfers = [];
+    let mainAccountEntries = [];
+    let customization = {};
+    let selectedDealer = null;
+    let currentOrderData = null;
+    let isQuote = false;
+
+    // ── Initialize ──────────────────────────────────────────────────────────
+    window.addEventListener('load', function() {
+      setupDates();
+      checkSession();
+      // Allow Enter key on password field
+      var pwEl = document.getElementById('loginPassword');
+      if (pwEl) {
+        pwEl.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') doLogin();
+        });
+      }
+      var idEl = document.getElementById('loginUserId');
+      if (idEl) {
+        idEl.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') {
+            var pw = document.getElementById('loginPassword');
+            if (pw) pw.focus();
+          }
+        });
+      }
+    });
+
+    // ── Login ────────────────────────────────────────────────────────────────
+    function showLoginError(msg) {
+      var el = document.getElementById('loginError');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.display = msg ? 'block' : 'none';
+    }
+
+    function setLoginBusy(busy) {
+      var btn     = document.getElementById('loginBtn');
+      var txt     = document.getElementById('loginBtnText');
+      var spinner = document.getElementById('loginSpinner');
+      if (btn)     btn.disabled          = busy;
+      if (txt)     txt.style.display     = busy ? 'none' : 'inline';
+      if (spinner) spinner.style.display = busy ? 'block' : 'none';
+    }
+
+    function doLogin() {
+      var userId   = (document.getElementById('loginUserId').value   || '').trim();
+      var password = (document.getElementById('loginPassword').value || '').trim();
+
+      showLoginError('');
+
+      if (!userId || !password) {
+        showLoginError('Please enter your User ID and Password.');
+        return;
+      }
+
+      if (typeof google === 'undefined' || !google.script) {
+        showLoginError('Not connected to Google Apps Script. Please open this app via its deployed Web App URL.');
+        return;
+      }
+
+      setLoginBusy(true);
+
+      google.script.run
+        .withSuccessHandler(function(raw) {
+          setLoginBusy(false);
+          var list;
+          try { list = JSON.parse(raw); }
+          catch(e) {
+            showLoginError('Server returned invalid data. Check Apps Script logs.');
+            console.error('getUsers parse error:', e, raw);
+            return;
+          }
+          if (!Array.isArray(list) || list.length === 0) {
+            showLoginError('No users found in the Users sheet. Please check your spreadsheet.');
+            return;
+          }
+          var matched = null;
+          for (var i = 0; i < list.length; i++) {
+            var u = list[i];
+            if (String(u.id || '').trim() === userId &&
+                String(u.password || '').trim() === password) {
+              matched = u;
+              break;
+            }
+          }
+          if (matched) {
+            currentUser = matched;
+            users = list;
+            sessionSave(matched);
+            showMainApp();
+          } else {
+            showLoginError('Incorrect User ID or Password. Please try again.');
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginPassword').focus();
+          }
+        })
+        .withFailureHandler(function(err) {
+          setLoginBusy(false);
+          var msg = (err && err.message) ? err.message : String(err);
+          showLoginError('Server error: ' + msg);
+          console.error('getUsers failure:', err);
+        })
+        .getUsers();
+    }
+
+    function setupDates() {
+      try {
+        // Use Bangladesh Time (GMT+6)
+        var now = new Date();
+        var bdTime = new Date(now.getTime() + (6 * 60 * 60 * 1000));
+        var today = bdTime.toISOString().split('T')[0];
+        var ids = ['orderDate','paymentDate','giveawayDate','entryDate','transferDate',
+                   'balanceFromDate','balanceToDate','reportFromDate','reportToDate',
+                   'retailEntryDate','mainEntryDate'];
+        for (var i = 0; i < ids.length; i++) {
+          var el = document.getElementById(ids[i]);
+          if (el) el.value = today;
+        }
+      } catch(e) {
+        console.warn('setupDates error (non-fatal):', e);
+      }
+    }
+
+    function showLoading() {
+      document.getElementById('loadingOverlay').classList.add('active');
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.remove('active');
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMessage').textContent = message;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // ── Session helpers (localStorage blocked in some GAS iframes) ──
+    function sessionSave(user) {
+      try { localStorage.setItem('currentSession', JSON.stringify(user)); } catch(e) {}
+    }
+    function sessionLoad() {
+      try { return JSON.parse(localStorage.getItem('currentSession')); } catch(e) { return null; }
+    }
+    function sessionClear() {
+      try { localStorage.removeItem('currentSession'); } catch(e) {}
+    }
+
+    // Check for existing session
+    function checkSession() {
+      const user = sessionLoad();
+      if (user && user.id) {
+        currentUser = user;
+        showMainApp();
+      }
+    }
+
+
+
+    function showMainApp() {
+      var ls = document.getElementById('loginScreen');
+      var sb = document.getElementById('sidebar');
+      var mc = document.getElementById('mainContent');
+      if (ls) ls.classList.add('hidden');
+      if (sb) sb.style.display = 'flex';
+      if (mc) mc.style.display = 'flex';
+      updateUserDisplay();
+      loadCustomization();
+      loadAllData();
+    }
+
+    function updateUserDisplay() {
+      if (currentUser) {
+        document.getElementById('currentUserName').textContent = currentUser.name;
+        document.getElementById('currentUserId').textContent = currentUser.id;
+        if (currentUser.photo) {
+          document.getElementById('currentUserPhoto').src = currentUser.photo;
+          document.getElementById('profilePhotoPreview').src = currentUser.photo;
+        }
+        document.getElementById('profileName').value = currentUser.name;
+        document.getElementById('profileId').value = currentUser.id;
+      }
+    }
+
+    function logout() {
+      sessionClear();
+      currentUser = null;
+      var ls = document.getElementById('loginScreen');
+      var sb = document.getElementById('sidebar');
+      var mc = document.getElementById('mainContent');
+      if (ls) ls.classList.remove('hidden');
+      if (sb) sb.style.display = 'none';
+      if (mc) mc.style.display = 'none';
+      var uid = document.getElementById('loginUserId');
+      var upw = document.getElementById('loginPassword');
+      if (uid) { uid.value = ''; uid.focus(); }
+      if (upw) upw.value = '';
+      showLoginError('');
+    }
+
+    // Navigation
+    function showSection(sectionId) {
+      document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      
+      document.getElementById(sectionId).classList.add('active');
+      event.currentTarget.classList.add('active');
+      
+      document.getElementById('pageTitle').textContent = 
+        sectionId === 'stockBalance' ? 'Stock Balance' :
+        sectionId === 'payments' ? 'Payments' :
+        sectionId.charAt(0).toUpperCase() + sectionId.slice(1);
+      
+      // Load section specific data
+      if (sectionId === 'balance') populateBalanceParties();
+      if (sectionId === 'payments') renderPayments();
+      if (sectionId === 'orders') {
+        populateProductSelects();
+        addOrderItem();
+      }
+      if (sectionId === 'stock') populateEntryProducts();
+      if (sectionId === 'transfer') addTransferItem();
+      if (sectionId === 'giveaway') populateGiveawayProducts();
+      if (sectionId === 'invoices') populateInvoiceSelect();
+      if (sectionId === 'stockBalance') loadStockBalance();
+      if (sectionId === 'reports') updateReportFilters();
+    }
+
+    // Load all data
+    function loadAllData() {
+      showLoading();
+      
+      // Load dashboard data
+      google.script.run
+        .withSuccessHandler(function(data) {
+          const dash = JSON.parse(data);
+          document.getElementById('dashDealers').textContent = dash.totalDealers;
+          document.getElementById('dashProducts').textContent = dash.activeProducts;
+          document.getElementById('dashOrders').textContent = dash.todayOrders;
+          document.getElementById('dashReceivable').textContent = '' + formatNumber(dash.totalReceivable);
+          
+          document.getElementById('recentOrdersTable').innerHTML = dash.recentOrders.map(o => `
+            <tr>
+              <td><strong>${o.id}</strong></td>
+              <td>${formatDate(o.date)}</td>
+              <td>${o.customerName}</td>
+              <td><span class="badge ${o.type === 'dealer' ? 'badge-success' : 'badge-warning'}">${o.type}</span></td>
+              <td>${formatNumber(o.netTotal)}</td>
+              <td>
+                <button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">View</button>
+              </td>
+            </tr>
+          `).join('');
+          
+          hideLoading();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getDashboardData();
+      
+      // Load dealers
+      google.script.run
+        .withSuccessHandler(function(data) {
+          dealers = JSON.parse(data);
+          renderDealers();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getDealers();
+      
+      // Load products
+      google.script.run
+        .withSuccessHandler(function(data) {
+          products = JSON.parse(data);
+          renderProducts();
+          populateProductSelects();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getProducts();
+      
+      // Load orders
+      google.script.run
+        .withSuccessHandler(function(data) {
+          orders = JSON.parse(data);
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getOrders();
+      
+      // Load payments
+      google.script.run
+        .withSuccessHandler(function(data) {
+          payments = JSON.parse(data);
+          renderPayments();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getPayments();
+      
+      // Load giveaways
+      google.script.run
+        .withSuccessHandler(function(data) {
+          giveaways = JSON.parse(data);
+          renderGiveaways();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getGiveaways();
+      
+      // Load retail sales
+      google.script.run
+        .withSuccessHandler(function(data) {
+          retailSales = JSON.parse(data);
+          renderRetailSales();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getRetailSales();
+    }
+
+    // Customization
+    function loadCustomization() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          customization = JSON.parse(data);
+          applyCustomization();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getCustomization();
+    }
+
+    function applyCustomization() {
+      if (customization.title) {
+        document.getElementById('loginTitle').textContent = customization.title;
+        document.getElementById('sidebarTitle').textContent = customization.title;
+        document.title = customization.title;
+        document.getElementById('customTitle').value = customization.title;
+      }
+      
+      if (customization.logo) {
+        document.getElementById('loginLogo').src = customization.logo;
+        document.getElementById('sidebarLogo').src = customization.logo;
+        document.getElementById('logoPreview').innerHTML = `<img src="${customization.logo}" alt="Logo">`;
+      }
+      
+      if (customization.execName) document.getElementById('execName').value = customization.execName;
+      if (customization.execDetails) document.getElementById('execDetails').value = customization.execDetails;
+      
+      if (customization.theme) {
+        document.querySelectorAll('.color-option').forEach(el => el.classList.remove('active'));
+        // Theme application logic here
+      }
+    }
+
+    function previewLogo() {
+      const file = document.getElementById('customLogo').files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('logoPreview').innerHTML = `<img src="${e.target.result}" alt="Logo">`;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function selectTheme(theme) {
+      customization.theme = theme;
+      document.querySelectorAll('.color-option').forEach(el => el.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    function saveCustomization() {
+      customization.title = document.getElementById('customTitle').value;
+      customization.execName = document.getElementById('execName').value;
+      customization.execDetails = document.getElementById('execDetails').value;
+      
+      const logoImg = document.querySelector('#logoPreview img');
+      if (logoImg) customization.logo = logoImg.src;
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          applyCustomization();
+          showToast('Customization saved');
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .saveCustomization(customization);
+    }
+
+    // Profile
+    function openProfileModal() {
+      document.getElementById('profileModal').classList.add('active');
+    }
+
+    function updateProfilePhoto() {
+      const file = document.getElementById('profilePhotoInput').files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('profilePhotoPreview').src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function saveProfile() {
+      const name = document.getElementById('profileName').value;
+      const id = document.getElementById('profileId').value;
+      const password = document.getElementById('profilePassword').value;
+      const confirm = document.getElementById('profilePasswordConfirm').value;
+      const photo = document.getElementById('profilePhotoPreview').src;
+      
+      if (!name || !id) {
+        showToast('Name and ID required', 'error');
+        return;
+      }
+      
+      if (password && password !== confirm) {
+        showToast('Passwords do not match', 'error');
+        return;
+      }
+      
+      const userData = {
+        id: id,
+        name: name,
+        password: password || currentUser.password,
+        photo: photo.includes('data:image') ? photo : currentUser.photo,
+        role: currentUser.role
+      };
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          currentUser = userData;
+          sessionSave(userData);
+          updateUserDisplay();
+          closeModal('profileModal');
+          showToast('Profile updated');
+        })
+        .withFailureHandler(function(err) {
+          hideLoading();
+          showToast('Save failed: ' + (err.message || err), 'error');
+        })
+        .saveUser(userData);
+    }
+
+    // Dealer Functions
+    function renderDealers() {
+      const search = document.getElementById('dealerSearch').value.toLowerCase();
+      let filtered = dealers;
+      if (search) {
+        filtered = dealers.filter(d => 
+          d.name.toLowerCase().includes(search) || 
+          d.phone.includes(search)
+        );
+      }
+      
+      document.getElementById('dealersTable').innerHTML = filtered.map(d => `
+        <tr>
+          <td><strong>${d.name}</strong></td>
+          <td>${d.address}</td>
+          <td>${d.phone}</td>
+          <td><span class="badge badge-warning">${d.officer}</span></td>
+          <td class="${d.balance > 0 ? 'balance-negative' : 'balance-positive'}">
+            ${d.balance > 0 ? '' : '-'}${formatNumber(Math.abs(d.balance))}
+          </td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="editDealer('${d.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteDealer('${d.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="6" style="text-align:center;">No dealers</td></tr>';
+    }
+
+    function openDealerModal() {
+      document.getElementById('dealerId').value = '';
+      document.getElementById('dealerName').value = '';
+      document.getElementById('dealerAddress').value = '';
+      document.getElementById('dealerPhone').value = '';
+      document.getElementById('dealerOfficer').value = '';
+      document.getElementById('dealerModal').classList.add('active');
+    }
+
+    function editDealer(id) {
+      const d = dealers.find(x => x.id === id);
+      document.getElementById('dealerId').value = d.id;
+      document.getElementById('dealerName').value = d.name;
+      document.getElementById('dealerAddress').value = d.address;
+      document.getElementById('dealerPhone').value = d.phone;
+      document.getElementById('dealerOfficer').value = d.officer;
+      document.getElementById('dealerModal').classList.add('active');
+    }
+
+    function saveDealer() {
+      const data = {
+        id: document.getElementById('dealerId').value,
+        name: document.getElementById('dealerName').value,
+        address: document.getElementById('dealerAddress').value,
+        phone: document.getElementById('dealerPhone').value,
+        officer: document.getElementById('dealerOfficer').value
+      };
+      
+      if (!data.name || !data.phone) {
+        showToast('Name and phone required', 'error');
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          const res = JSON.parse(result);
+          closeModal('dealerModal');
+          showToast('Dealer saved');
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .saveDealer(data);
+    }
+
+    function deleteDealer(id) {
+      if (!confirm('Delete this dealer?')) return;
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          showToast('Dealer deleted');
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .deleteDealer(id);
+    }
+
+    // Product Functions
+    function renderProducts() {
+      const search = document.getElementById('productSearch').value.toLowerCase();
+      let filtered = products;
+      if (search) filtered = products.filter(p => p.name.toLowerCase().includes(search));
+      
+      document.getElementById('productsTable').innerHTML = filtered.map(p => {
+        const slabsHtml = p.slabs.map(s => 
+          `<span style="display:inline-block; margin-right:8px; padding:2px 6px; background:#f0f0f0; border-radius:4px; font-size:10px;">
+            ${s.min}-${s.max === 999999 ? '∞' : s.max}: ${formatNumber(s.price)}
+          </span>`
+        ).join('');
+        
+        return `
+        <tr>
+          <td><strong>${p.name}</strong></td>
+          <td>${p.version}</td>
+          <td>${p.dhaka} / ${p.chittagong}</td>
+          <td>${formatNumber(p.retailPrice)}</td>
+          <td><div style="font-size:11px;">${slabsHtml}</div></td>
+          <td>${formatNumber(p.commission)}</td>
+          <td><span class="badge ${p.status === 'active' ? 'badge-success' : 'badge-danger'}">${p.status}</span></td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')">Delete</button>
+          </td>
+        </tr>
+      `}).join('') || '<tr><td colspan="8" style="text-align:center;">No products</td></tr>';
+    }
+
+    function openProductModal() {
+      document.getElementById('productId').value = '';
+      document.getElementById('productName').value = '';
+      document.getElementById('productVersion').value = '';
+      document.getElementById('productRetailPrice').value = '';
+      document.getElementById('productCommission').value = '0';
+      document.getElementById('productStatus').value = 'active';
+      document.getElementById('priceSlabs').innerHTML = '';
+      addPriceSlab();
+      document.getElementById('productModal').classList.add('active');
+    }
+
+    function addPriceSlab() {
+      const div = document.createElement('div');
+      div.className = 'form-row';
+      div.innerHTML = `
+        <div class="form-group">
+          <input type="number" class="form-control slab-min" placeholder="Min Qty" value="1">
+        </div>
+        <div class="form-group">
+          <input type="number" class="form-control slab-max" placeholder="Max Qty" value="999999">
+        </div>
+        <div class="form-group">
+          <input type="number" class="form-control slab-price" placeholder="Price">
+        </div>
+        <div class="form-group" style="display:flex; align-items:end;">
+          <span class="remove-btn" onclick="this.parentElement.parentElement.remove()" style="margin-bottom:8px;">×</span>
+        </div>
+      `;
+      document.getElementById('priceSlabs').appendChild(div);
+    }
+
+    function editProduct(id) {
+      const p = products.find(x => x.id === id);
+      document.getElementById('productId').value = p.id;
+      document.getElementById('productName').value = p.name;
+      document.getElementById('productVersion').value = p.version;
+      document.getElementById('productRetailPrice').value = p.retailPrice;
+      document.getElementById('productCommission').value = p.commission;
+      document.getElementById('productStatus').value = p.status;
+      
+      document.getElementById('priceSlabs').innerHTML = '';
+      p.slabs.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'form-row';
+        div.innerHTML = `
+          <div class="form-group">
+            <input type="number" class="form-control slab-min" placeholder="Min Qty" value="${s.min}">
+          </div>
+          <div class="form-group">
+            <input type="number" class="form-control slab-max" placeholder="Max Qty" value="${s.max}">
+          </div>
+          <div class="form-group">
+            <input type="number" class="form-control slab-price" placeholder="Price" value="${s.price}">
+          </div>
+          <div class="form-group" style="display:flex; align-items:end;">
+            <span class="remove-btn" onclick="this.parentElement.parentElement.remove()" style="margin-bottom:8px;">×</span>
+          </div>
+        `;
+        document.getElementById('priceSlabs').appendChild(div);
+      });
+      
+      document.getElementById('productModal').classList.add('active');
+    }
+
+    function saveProduct() {
+      const slabs = [];
+      document.querySelectorAll('#priceSlabs .form-row').forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        slabs.push({
+          min: parseInt(inputs[0].value) || 0,
+          max: parseInt(inputs[1].value) || 999999,
+          price: parseFloat(inputs[2].value) || 0
+        });
+      });
+      
+      const data = {
+        id: document.getElementById('productId').value,
+        name: document.getElementById('productName').value,
+        version: document.getElementById('productVersion').value,
+        retailPrice: parseFloat(document.getElementById('productRetailPrice').value) || 0,
+        commission: parseFloat(document.getElementById('productCommission').value) || 0,
+        status: document.getElementById('productStatus').value,
+        slabs: slabs
+      };
+      
+      if (!data.name || !data.retailPrice) {
+        showToast('Name and price required', 'error');
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          closeModal('productModal');
+          showToast('Product saved');
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .saveProduct(data);
+    }
+
+    function deleteProduct(id) {
+      if (!confirm('Delete this product?')) return;
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          showToast('Product deleted');
+          loadAllData();
+        })
+        .withFailureHandler(function(err) {
+          hideLoading();
+          showToast('Delete failed: ' + (err.message || err), 'error');
+        })
+        .deleteProduct(id);
+    }
+
+    // Order Functions
+    function toggleOrderType() {
+      const type = document.getElementById('orderType').value;
+      document.getElementById('dealerSection').style.display = type === 'dealer' ? 'block' : 'none';
+      document.getElementById('retailSection').style.display = type === 'retail' ? 'block' : 'none';
+    }
+
+    function changeInventorySource() {
+      const source = document.getElementById('inventorySource').value;
+      document.querySelectorAll('.location-header').forEach(th => {
+        th.style.display = source === 'mixed' ? 'table-cell' : 'none';
+      });
+      document.querySelectorAll('.location-cell').forEach(td => {
+        td.style.display = source === 'mixed' ? 'table-cell' : 'none';
+      });
+    }
+
+    function searchDealerForOrder() {
+      const val = document.getElementById('dealerSearchInput').value.toLowerCase();
+      const list = document.getElementById('dealerAutocomplete');
+      
+      if (val.length < 2) {
+        list.style.display = 'none';
+        return;
+      }
+      
+      const matches = dealers.filter(d => d.name.toLowerCase().includes(val));
+      list.innerHTML = matches.map(d => `
+        <div class="autocomplete-item" onclick="selectDealer('${d.id}')">
+          <strong>${d.name}</strong><br>
+          <small>${d.phone}</small>
+        </div>
+      `).join('');
+      list.style.display = matches.length ? 'block' : 'none';
+    }
+
+    function selectDealer(id) {
+      selectedDealer = dealers.find(d => d.id === id);
+      document.getElementById('dealerSearchInput').value = selectedDealer.name;
+      document.getElementById('dealerAutocomplete').style.display = 'none';
+      document.getElementById('selectedDealerInfo').style.display = 'block';
+      document.getElementById('selDealerName').textContent = selectedDealer.name;
+      document.getElementById('selDealerDetails').innerHTML = `
+        ${selectedDealer.address}<br>
+        ${selectedDealer.phone} | Officer: ${selectedDealer.officer}
+      `;
+    }
+
+    function populateProductSelects() {
+      const options = products.filter(p => p.status === 'active').map(p => 
+        `<option value="${p.id}">${p.name} ${p.version}</option>`
+      ).join('');
+      
+      document.getElementById('entryProduct').innerHTML = '<option value="">Select...</option>' + options;
+      document.getElementById('giveawayProduct').innerHTML = '<option value="">Select...</option>' + options;
+    }
+
+    function addOrderItem() {
+      const tbody = document.getElementById('orderItemsBody');
+      const tr = document.createElement('tr');
+      const source = document.getElementById('inventorySource').value;
+      
+      tr.innerHTML = `
+        <td>
+          <div class="autocomplete-wrapper">
+            <input type="text" class="form-control product-search" placeholder="Search..." onkeyup="searchProduct(this)">
+            <div class="autocomplete-list product-list" style="display:none;"></div>
+            <input type="hidden" class="product-id">
+            <div class="stock-display" style="display:none;">
+              <span style="color:#48bb78;">D: <span class="stock-dhaka">0</span></span>
+              <span style="color:#ed8936;">C: <span class="stock-ctg">0</span></span>
+            </div>
+          </div>
+        </td>
+        <td><input type="number" class="form-control qty" value="1" onchange="updateItemTotal(this)"></td>
+        <td><input type="number" class="form-control price" onchange="updateItemTotal(this)"></td>
+        <td><input type="text" class="form-control total" readonly></td>
+        <td class="location-cell" style="display:${source === 'mixed' ? 'table-cell' : 'none'}">
+          <select class="form-control location">
+            <option value="dhaka">Dhaka</option>
+            <option value="chittagong">Chittagong</option>
+          </select>
+        </td>
+        <td><span class="remove-btn" onclick="this.closest('tr').remove(); calculateOrderTotal()">×</span></td>
+      `;
+      
+      tbody.appendChild(tr);
+    }
+
+    function searchProduct(input) {
+      const val = input.value.toLowerCase();
+      const list = input.parentElement.querySelector('.product-list');
+      const stockDisplay = input.parentElement.querySelector('.stock-display');
+      
+      if (val.length < 2) {
+        list.style.display = 'none';
+        return;
+      }
+      
+      const matches = products.filter(p => p.status === 'active' && p.name.toLowerCase().includes(val));
+      list.innerHTML = matches.map(p => `
+        <div class="autocomplete-item" onclick="selectProduct(this, '${p.id}')">
+          <strong>${p.name}</strong> ${p.version}<br>
+          <small>Stock: D:${p.dhaka} C:${p.chittagong} | ${p.retailPrice}</small>
+        </div>
+      `).join('');
+      list.style.display = matches.length ? 'block' : 'none';
+    }
+
+    function selectProduct(el, pid) {
+      const product = products.find(p => p.id === pid);
+      const row = el.closest('tr');
+      
+      row.querySelector('.product-search').value = product.name + ' ' + product.version;
+      row.querySelector('.product-id').value = pid;
+      row.querySelector('.product-list').style.display = 'none';
+      
+      // Show stock
+      const stockDisplay = row.querySelector('.stock-display');
+      stockDisplay.style.display = 'block';
+      stockDisplay.querySelector('.stock-dhaka').textContent = product.dhaka;
+      stockDisplay.querySelector('.stock-ctg').textContent = product.chittagong;
+      
+      // Set price based on order type and qty
+      const orderType = document.getElementById('orderType').value;
+      const qty = 1;
+      
+      let price = product.retailPrice;
+      if (orderType === 'dealer') {
+        const slab = product.slabs.find(s => qty >= s.min && qty <= s.max);
+        if (slab) price = slab.price;
+      }
+      
+      row.querySelector('.price').value = price;
+      updateItemTotal(row.querySelector('.qty'));
+    }
+
+    function updateItemTotal(input) {
+      const row = input.closest('tr');
+      const qty = parseInt(row.querySelector('.qty').value) || 0;
+      const price = parseFloat(row.querySelector('.price').value) || 0;
+      row.querySelector('.total').value = (qty * price).toFixed(2);
+      calculateOrderTotal();
+    }
+
+    function calculateOrderTotal() {
+      let subtotal = 0;
+      document.querySelectorAll('#orderItemsBody tr').forEach(row => {
+        subtotal += parseFloat(row.querySelector('.total').value) || 0;
+      });
+      
+      const discount = parseFloat(document.getElementById('orderDiscount').value) || 0;
+      const extra = parseFloat(document.getElementById('orderExtra').value) || 0;
+      const net = subtotal - discount + extra;
+      
+      document.getElementById('subtotalAmount').textContent = '' + formatNumber(subtotal);
+      document.getElementById('discountAmount').textContent = '' + formatNumber(discount);
+      document.getElementById('extraAmount').textContent = '' + formatNumber(extra);
+      document.getElementById('netTotalAmount').textContent = '' + formatNumber(net);
+      
+      return {subtotal, discount, extra, net};
+    }
+
+    function placeOrder() {
+      isQuote = false;
+      processOrder();
+    }
+
+    function showQuote() {
+      isQuote = true;
+      processOrder();
+    }
+
+    function processOrder() {
+      const type = document.getElementById('orderType').value;
+      const date = document.getElementById('orderDate').value;
+      const inventorySource = document.getElementById('inventorySource').value;
+      const totals = calculateOrderTotal();
+      const notes = document.getElementById('orderNotes').value;
+      
+      let customerName, customerPhone, customerAddress, dealerId = null, officer = '';
+      
+      if (type === 'dealer') {
+        if (!selectedDealer) {
+          showToast('Select a dealer', 'error');
+          return;
+        }
+        dealerId = selectedDealer.id;
+        customerName = selectedDealer.name;
+        customerPhone = selectedDealer.phone;
+        customerAddress = selectedDealer.address;
+        officer = selectedDealer.officer;
+      } else {
+        customerName = document.getElementById('retailCustomerName').value;
+        customerPhone = document.getElementById('retailCustomerPhone').value;
+        customerAddress = document.getElementById('retailCustomerAddress').value;
+        
+        if (!customerName) {
+          showToast('Enter customer name', 'error');
+          return;
+        }
+      }
+      
+      const items = [];
+      document.querySelectorAll('#orderItemsBody tr').forEach(row => {
+        const pid = row.querySelector('.product-id').value;
+        if (!pid) return;
+        
+        const product = products.find(p => p.id === pid);
+        const qty = parseInt(row.querySelector('.qty').value) || 0;
+        const price = parseFloat(row.querySelector('.price').value) || 0;
+        const location = inventorySource === 'mixed' ? 
+          row.querySelector('.location').value : inventorySource;
+        
+        items.push({
+          productId: pid,
+          productName: product.name,
+          version: product.version,
+          quantity: qty,
+          price: price,
+          total: qty * price,
+          location: location,
+          commission: product.commission * qty
+        });
+      });
+      
+      if (items.length === 0) {
+        showToast('Add at least one item', 'error');
+        return;
+      }
+      
+      const orderData = {
+        date: date,
+        type: type,
+        dealerId: dealerId,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        customerAddress: customerAddress,
+        officer: officer,
+        items: items,
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        extra: totals.extra,
+        netTotal: totals.net,
+        notes: notes,
+        inventorySource: inventorySource
+      };
+      
+      if (isQuote) {
+        currentOrderData = orderData;
+        showQuotePreview(orderData);
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          const res = JSON.parse(result);
+          showToast(`Order ${res.orderId} placed!`);
+          
+          // Reset form
+          document.getElementById('orderItemsBody').innerHTML = '';
+          addOrderItem();
+          document.getElementById('orderDiscount').value = 0;
+          document.getElementById('orderExtra').value = 0;
+          document.getElementById('orderNotes').value = '';
+          if (type === 'dealer') {
+            document.getElementById('dealerSearchInput').value = '';
+            document.getElementById('selectedDealerInfo').style.display = 'none';
+            selectedDealer = null;
+          }
+          calculateOrderTotal();
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .placeOrder(orderData);
+    }
+
+    function showQuotePreview(orderData) {
+      const quoteHtml = generateInvoiceHtml(orderData, true);
+      document.getElementById('quoteContent').innerHTML = quoteHtml;
+      document.getElementById('quoteModal').classList.add('active');
+    }
+
+    function printQuote() {
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+        <head>
+          <title>Quote</title>
+          <style>
+            body { margin: 0; font-family: 'Courier New', monospace; font-size: 11px; }
+            .invoice-paper { width: 210mm; padding: 15mm; margin: 0 auto; }
+            .quote-watermark {
+              position: absolute; top: 50%; left: 50%;
+              transform: translate(-50%, -50%) rotate(-45deg);
+              font-size: 60px; color: rgba(200,0,0,0.1);
+              border: 3px solid rgba(200,0,0,0.2);
+              padding: 20px 40px; text-transform: uppercase;
+              letter-spacing: 4px; pointer-events: none;
+            }
+            .invoice-header { display: flex; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #000; }
+            .invoice-company h2 { font-size: 22px; text-transform: uppercase; margin-bottom: 6px; }
+            .invoice-meta { text-align: right; }
+            .invoice-meta h3 { font-size: 18px; margin-bottom: 10px; text-transform: uppercase; }
+            .invoice-party { margin-bottom: 24px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+            th, td { border: 1px solid #000; padding: 6px; text-align: left; font-size: 10px; }
+            th { background: #f5f5f5; }
+            .text-right { text-align: right; }
+            .invoice-totals { width: 280px; margin-left: auto; }
+            .grand-total { font-size: 12px; font-weight: bold; border-top: 2px solid #000; }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-paper" style="position:relative;">
+            <div class="quote-watermark">QUOTE</div>
+            ${document.getElementById('quoteContent').innerHTML}
+          </div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+
+    // Stock Entry
+    function populateEntryProducts() {
+      const options = products.filter(p => p.status === 'active').map(p => 
+        `<option value="${p.id}">${p.name}</option>`
+      ).join('');
+      document.getElementById('entryProduct').innerHTML = '<option value="">Select...</option>' + options;
+    }
+
+    function loadProductStock() {
+      const pid = document.getElementById('entryProduct').value;
+      const loc = document.getElementById('entryLocation').value;
+      if (!pid) return;
+      
+      const product = products.find(p => p.id === pid);
+      const qty = loc === 'dhaka' ? product.dhaka : product.chittagong;
+      document.getElementById('currentStock').value = qty + ' pcs';
+    }
+
+    function saveStockEntry() {
+      const data = {
+        date: document.getElementById('entryDate').value,
+        productId: document.getElementById('entryProduct').value,
+        productName: products.find(p => p.id === document.getElementById('entryProduct').value)?.name,
+        location: document.getElementById('entryLocation').value,
+        quantity: parseInt(document.getElementById('entryQty').value) || 0,
+        notes: document.getElementById('entryNotes').value
+      };
+      
+      if (!data.productId || data.quantity === 0) {
+        showToast('Select product and enter quantity', 'error');
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          showToast('Stock entry saved');
+          document.getElementById('entryQty').value = '';
+          document.getElementById('entryNotes').value = '';
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .saveStockEntry(data);
+    }
+
+    // Stock Transfer
+    function updateTransferTo() {
+      const from = document.getElementById('transferFrom').value;
+      document.getElementById('transferTo').value = from === 'dhaka' ? 'Chittagong' : 'Dhaka';
+    }
+
+    function addTransferItem() {
+      const container = document.getElementById('transferItems');
+      const div = document.createElement('div');
+      div.className = 'form-row';
+      div.style.cssText = 'padding:12px; background:#f7fafc; border-radius:6px; margin-bottom:8px;';
+      
+      div.innerHTML = `
+        <div class="form-group">
+          <label>Product</label>
+          <select class="form-control transfer-product" onchange="updateTransferStock(this)">
+            <option value="">Select...</option>
+            ${products.filter(p => p.status === 'active').map(p => 
+              `<option value="${p.id}" data-dhaka="${p.dhaka}" data-ctg="${p.chittagong}">${p.name}</option>`
+            ).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Available</label>
+          <input type="text" class="form-control transfer-available" readonly>
+        </div>
+        <div class="form-group">
+          <label>Quantity</label>
+          <input type="number" class="form-control transfer-qty" min="1">
+        </div>
+        <div class="form-group" style="display:flex; align-items:end;">
+          <span class="remove-btn" onclick="this.closest('.form-row').remove()" style="margin-bottom:8px;">×</span>
+        </div>
+      `;
+      
+      container.appendChild(div);
+    }
+
+    function updateTransferStock(select) {
+      const from = document.getElementById('transferFrom').value;
+      const opt = select.options[select.selectedIndex];
+      const available = from === 'dhaka' ? opt.dataset.dhaka : opt.dataset.ctg;
+      select.closest('.form-row').querySelector('.transfer-available').value = available + ' pcs';
+    }
+
+    function saveTransfer() {
+      const items = [];
+      document.querySelectorAll('#transferItems .form-row').forEach(row => {
+        const pid = row.querySelector('.transfer-product').value;
+        const qty = parseInt(row.querySelector('.transfer-qty').value) || 0;
+        if (!pid || qty <= 0) return;
+        
+        const product = products.find(p => p.id === pid);
+        items.push({productId: pid, productName: product.name, quantity: qty});
+      });
+      
+      if (items.length === 0) {
+        showToast('Add items to transfer', 'error');
+        return;
+      }
+      
+      const data = {
+        date: document.getElementById('transferDate').value,
+        from: document.getElementById('transferFrom').value,
+        to: document.getElementById('transferFrom').value === 'dhaka' ? 'chittagong' : 'dhaka',
+        items: items
+      };
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          showToast('Transfer completed');
+          document.getElementById('transferItems').innerHTML = '';
+          addTransferItem();
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .saveStockTransfer(data);
+    }
+
+    // Payments
+    function searchDealerForPayment() {
+      const val = document.getElementById('paymentDealerSearch').value.toLowerCase();
+      const list = document.getElementById('paymentDealerAutocomplete');
+      
+      if (val.length < 2) {
+        list.style.display = 'none';
+        return;
+      }
+      
+      const matches = dealers.filter(d => d.name.toLowerCase().includes(val));
+      list.innerHTML = matches.map(d => `
+        <div class="autocomplete-item" onclick="selectPaymentDealer('${d.id}')">
+          <strong>${d.name}</strong><br>
+          <small>Bal: ${formatNumber(d.balance)}</small>
+        </div>
+      `).join('');
+      list.style.display = matches.length ? 'block' : 'none';
+    }
+
+    function selectPaymentDealer(id) {
+      selectedPaymentDealer = dealers.find(d => d.id === id);
+      document.getElementById('paymentDealerSearch').value = selectedPaymentDealer.name;
+      document.getElementById('paymentDealerAutocomplete').style.display = 'none';
+    }
+
+    function togglePaymentFields() {
+      const type = document.getElementById('paymentType').value;
+      document.getElementById('bankNameGroup').style.display = type === 'bank' ? 'block' : 'none';
+    }
+
+    function savePayment() {
+      if (!selectedPaymentDealer) {
+        showToast('Select dealer', 'error');
+        return;
+      }
+      
+      const data = {
+        dealerId: selectedPaymentDealer.id,
+        dealerName: selectedPaymentDealer.name,
+        date: document.getElementById('paymentDate').value,
+        type: document.getElementById('paymentType').value,
+        bankName: document.getElementById('paymentBankName').value,
+        reference: document.getElementById('paymentReference').value,
+        amount: parseFloat(document.getElementById('paymentAmount').value) || 0,
+        notes: document.getElementById('paymentNotes').value
+      };
+      
+      if (data.amount <= 0) {
+        showToast('Enter amount', 'error');
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          showToast('Payment saved');
+          document.getElementById('paymentAmount').value = '';
+          document.getElementById('paymentNotes').value = '';
+          document.getElementById('paymentReference').value = '';
+          selectedPaymentDealer = null;
+          document.getElementById('paymentDealerSearch').value = '';
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .savePayment(data);
+    }
+
+    function renderPayments() {
+      document.getElementById('paymentsTable').innerHTML = payments.slice().reverse().map(p => `
+        <tr>
+          <td>${formatDate(p.date)}</td>
+          <td>${p.dealerName}</td>
+          <td><span class="badge ${p.type === 'cash' ? 'badge-success' : p.type === 'bank' ? 'badge-info' : 'badge-warning'}">${p.type}</span></td>
+          <td>${p.bankName || '-'}</td>
+          <td>${p.reference || '-'}</td>
+          <td>${formatNumber(p.amount)}</td>
+          <td style="max-width:150px; word-break:break-word;">${p.notes || '-'}</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="editPayment('${p.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deletePayment('${p.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="8" style="text-align:center;">No payments</td></tr>';
+    }
+
+    function editPayment(id) {
+      const p = payments.find(x => x.id === id);
+      selectedPaymentDealer = dealers.find(d => d.id === p.dealerId);
+      document.getElementById('paymentDealerSearch').value = p.dealerName;
+      document.getElementById('paymentDate').value = p.date;
+      document.getElementById('paymentType').value = p.type;
+      document.getElementById('paymentBankName').value = p.bankName || '';
+      document.getElementById('paymentReference').value = p.reference || '';
+      document.getElementById('paymentAmount').value = p.amount;
+      document.getElementById('paymentNotes').value = p.notes || '';
+      
+      // Store ID for update
+      document.getElementById('paymentAmount').dataset.editId = id;
+    }
+
+    function deletePayment(id) {
+      if (!confirm('Delete this payment?')) return;
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          showToast('Payment deleted');
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .deletePayment(id);
+    }
+
+    // Balance
+    function populateBalanceParties() {
+      document.getElementById('balanceParty').innerHTML = 
+        '<option value="">Select Dealer...</option>' +
+        dealers.map(d => `<option value="${d.id}">${d.name} (Bal: ${formatNumber(d.balance)})</option>`).join('');
+    }
+
+    function loadBalance() {
+      const dealerId = document.getElementById('balanceParty').value;
+      const fromDate = document.getElementById('balanceFromDate').value;
+      const toDate = document.getElementById('balanceToDate').value;
+      
+      if (!dealerId) {
+        showToast('Select a party', 'error');
+        return;
+      }
+      
+      const dealer = dealers.find(d => d.id === dealerId);
+      const transactions = [];
+      
+      // Orders
+      orders.filter(o => o.dealerId === dealerId && o.date >= fromDate && o.date <= toDate)
+        .forEach(o => {
+          transactions.push({
+            date: o.date,
+            ref: o.id,
+            desc: `Order - ${o.items.map(i => i.productName).join(', ')}`,
+            debit: o.netTotal,
+            credit: 0,
+            notes: o.notes
+          });
+        });
+      
+      // Payments
+      payments.filter(p => p.dealerId === dealerId && p.date >= fromDate && p.date <= toDate)
+        .forEach(p => {
+          transactions.push({
+            date: p.date,
+            ref: p.reference || p.id,
+            desc: `Payment - ${p.type}${p.bankName ? ' ('+p.bankName+')' : ''}`,
+            debit: 0,
+            credit: p.amount,
+            notes: p.notes
+          });
+        });
+      
+      transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      const totalOrders = transactions.reduce((sum, t) => sum + t.debit, 0);
+      const totalPayments = transactions.reduce((sum, t) => sum + t.credit, 0);
+      const balance = totalOrders - totalPayments;
+      
+      document.getElementById('balTotalOrders').textContent = '' + formatNumber(totalOrders);
+      document.getElementById('balTotalPayments').textContent = '' + formatNumber(totalPayments);
+      document.getElementById('balCurrentBalance').textContent = (balance >= 0 ? '' : '-') + '' + formatNumber(Math.abs(balance));
+      document.getElementById('balCurrentBalance').className = balance > 0 ? 'balance-negative' : 'balance-positive';
+      document.getElementById('balanceSummary').style.display = 'block';
+      
+      let runningBal = 0;
+      document.getElementById('balanceTable').innerHTML = transactions.map(t => {
+        runningBal += t.debit - t.credit;
+        return `
+        <tr>
+          <td>${formatDate(t.date)}</td>
+          <td>${t.ref}</td>
+          <td>${t.desc}</td>
+          <td class="balance-negative">${t.debit > 0 ? ''+formatNumber(t.debit) : '-'}</td>
+          <td class="balance-positive">${t.credit > 0 ? ''+formatNumber(t.credit) : '-'}</td>
+          <td class="${runningBal > 0 ? 'balance-negative' : 'balance-positive'}">
+            ${runningBal > 0 ? '' : '-'}${formatNumber(Math.abs(runningBal))}
+          </td>
+          <td style="max-width:200px; word-break:break-word; font-size:12px;">${t.notes || '-'}</td>
+        </tr>
+      `}).join('') || '<tr><td colspan="7" style="text-align:center;">No transactions</td></tr>';
+    }
+
+    // Stock Balance
+    function loadStockBalance() {
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(data) {
+          hideLoading();
+          const bal = JSON.parse(data);
+          
+          document.getElementById('dhakaStockValue').textContent = '' + formatNumber(bal.dhaka.stockValue);
+          document.getElementById('dhakaSold').textContent = '' + formatNumber(bal.dhaka.soldAmount);
+          document.getElementById('dhakaSent').textContent = '' + formatNumber(bal.dhaka.sentToMain);
+          document.getElementById('dhakaDue').textContent = '' + formatNumber(bal.dhaka.due);
+          
+          document.getElementById('ctgStockValue').textContent = '' + formatNumber(bal.chittagong.stockValue);
+          document.getElementById('ctgSold').textContent = '' + formatNumber(bal.chittagong.soldAmount);
+          document.getElementById('ctgSent').textContent = '' + formatNumber(bal.chittagong.sentToMain);
+          document.getElementById('ctgDue').textContent = '' + formatNumber(bal.chittagong.due);
+          
+          renderMainAccountEntries();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getStockBalanceData();
+    }
+
+    function openMainAccountEntry(location) {
+      document.getElementById('mainEntryLocation').value = location;
+      document.getElementById('mainAccountModal').classList.add('active');
+    }
+
+    function saveMainAccountEntry() {
+      const data = {
+        date: document.getElementById('mainEntryDate').value,
+        location: document.getElementById('mainEntryLocation').value,
+        amount: parseFloat(document.getElementById('mainEntryAmount').value) || 0,
+        notes: document.getElementById('mainEntryNotes').value
+      };
+      
+      if (data.amount <= 0) {
+        showToast('Enter amount', 'error');
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          closeModal('mainAccountModal');
+          showToast('Entry saved');
+          document.getElementById('mainEntryAmount').value = '';
+          document.getElementById('mainEntryNotes').value = '';
+          loadStockBalance();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .saveMainAccountEntry(data);
+    }
+
+    function renderMainAccountEntries() {
+      const filter = document.getElementById('mainEntryFilter').value;
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(data) {
+          hideLoading();
+          const entries = JSON.parse(data);
+          const filtered = filter === 'all' ? entries : entries.filter(e => e.location === filter);
+          
+          document.getElementById('mainAccountTable').innerHTML = filtered.map(e => `
+            <tr>
+              <td>${formatDate(e.date)}</td>
+              <td>${e.location}</td>
+              <td>${formatNumber(e.amount)}</td>
+              <td>${e.notes || '-'}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="4" style="text-align:center;">No entries</td></tr>';
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getMainAccountEntries(filter === 'all' ? null : filter);
+    }
+
+    // Invoices
+    function populateInvoiceSelect() {
+      document.getElementById('invoiceSelect').innerHTML = 
+        '<option value="">Select Order...</option>' +
+        orders.slice().reverse().map(o => 
+          `<option value="${o.id}">${o.id} - ${o.customerName} (${formatNumber(o.netTotal)})</option>`
+        ).join('');
+    }
+
+    function previewInvoice() {
+      const id = document.getElementById('invoiceSelect').value;
+      if (!id) return;
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(data) {
+          hideLoading();
+          const order = JSON.parse(data);
+          document.getElementById('invoicePreview').innerHTML = generateInvoiceHtml(order, false);
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getOrderDetails(id);
+    }
+
+    function generateInvoiceHtml(order, isQuote) {
+      return `
+        <div class="invoice-paper" style="border:1px solid #ddd;">
+          ${isQuote ? '<div class="quote-watermark">QUOTE</div>' : ''}
+          <div class="invoice-header">
+            <div class="invoice-company">
+              <h2>${customization.title || 'INVOICE'}</h2>
+              ${customization.execName ? `<p><strong>${customization.execName}</strong></p>` : ''}
+              ${customization.execDetails ? `<p>${customization.execDetails}</p>` : ''}
+            </div>
+            <div class="invoice-meta">
+              <h3>${isQuote ? 'QUOTE' : 'INVOICE'}</h3>
+              <p><strong>#:</strong> ${order.id || 'QUOTE-' + Date.now()}</p>
+              <p><strong>Date:</strong> ${formatDate(order.date)}</p>
+              <p><strong>Type:</strong> ${order.type}</p>
+            </div>
+          </div>
+          
+          <div class="invoice-party">
+            <h4>Bill To:</h4>
+            <p><strong>${order.customerName}</strong></p>
+            <p>${order.customerAddress}</p>
+            <p>Phone: ${order.customerPhone}</p>
+            ${order.officer ? `<p>Officer: ${order.officer}</p>` : ''}
+          </div>
+          
+          <table class="invoice-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Location</th>
+                <th class="text-right">Qty</th>
+                <th class="text-right">Rate</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${order.items.map(item => `
+                <tr>
+                  <td>${item.productName} ${item.version}</td>
+                  <td>${item.location}</td>
+                  <td class="text-right">${item.quantity}</td>
+                  <td class="text-right">${formatNumber(item.price)}</td>
+                  <td class="text-right">${formatNumber(item.total)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="invoice-totals">
+            <table>
+              <tr><td>Subtotal:</td><td class="text-right">${formatNumber(order.subtotal)}</td></tr>
+              ${order.discount > 0 ? `<tr><td>Discount:</td><td class="text-right">${formatNumber(order.discount)}</td></tr>` : ''}
+              ${order.extra > 0 ? `<tr><td>Extra:</td><td class="text-right">${formatNumber(order.extra)}</td></tr>` : ''}
+              <tr class="grand-total"><td>NET TOTAL:</td><td class="text-right">${formatNumber(order.netTotal)}</td></tr>
+            </table>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top:16px;">
+          <button class="btn btn-primary" onclick="printInvoice()">Print</button>
+        </div>
+      `;
+    }
+
+    function printInvoice() {
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+        <head>
+          <title>Invoice</title>
+          <style>
+            body { margin: 0; font-family: 'Courier New', monospace; font-size: 12px; }
+            .invoice-paper { width: 210mm; padding: 15mm; margin: 0 auto; }
+            .invoice-header { display: flex; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #000; }
+            .invoice-company h2 { font-size: 18px; text-transform: uppercase; margin-bottom: 6px; }
+            .invoice-meta { text-align: right; }
+            .invoice-meta h3 { font-size: 16px; margin-bottom: 10px; text-transform: uppercase; }
+            .invoice-party { margin-bottom: 24px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+            th, td { border: 1px solid #000; padding: 6px; text-align: left; font-size: 12px; }
+            th { background: #f5f5f5; }
+            .text-right { text-align: right; }
+            .invoice-totals { width: 280px; margin-left: auto; }
+            .grand-total { font-size: 12px; font-weight: bold; border-top: 2px solid #000; }
+          </style>
+        </head>
+        <body>
+          ${document.querySelector('.invoice-paper').outerHTML}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+
+    // View Order
+    function viewOrder(id) {
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(data) {
+          hideLoading();
+          const order = JSON.parse(data);
+          currentOrderData = order;
+          
+          document.getElementById('viewOrderContent').innerHTML = `
+            <div class="form-row">
+              <div class="form-group">
+                <label>Order ID</label>
+                <div class="form-control" style="background:#f7fafc;">${order.id}</div>
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <div class="form-control" style="background:#f7fafc;">${formatDate(order.date)}</div>
+              </div>
+              <div class="form-group">
+                <label>Type</label>
+                <div class="form-control" style="background:#f7fafc;">${order.type}</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Customer</label>
+              <div class="form-control" style="background:#f7fafc;">${order.customerName}</div>
+            </div>
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Price</th>
+                  <th>Total</th>
+                  <th>Commission</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items.map(i => `
+                  <tr>
+                    <td>${i.productName} ${i.version}</td>
+                    <td>${i.quantity}</td>
+                    <td>${formatNumber(i.price)}</td>
+                    <td>${formatNumber(i.total)}</td>
+                    <td>${formatNumber(i.commission)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="summary-box">
+              <div class="summary-grid">
+                <div class="summary-item"><h4>Subtotal</h4><p>${formatNumber(order.subtotal)}</p></div>
+                <div class="summary-item"><h4>Discount</h4><p>${formatNumber(order.discount)}</p></div>
+                <div class="summary-item"><h4>Extra</h4><p>${formatNumber(order.extra)}</p></div>
+                <div class="summary-item"><h4>Net Total</h4><p>${formatNumber(order.netTotal)}</p></div>
+              </div>
+            </div>
+          `;
+          
+          document.getElementById('viewOrderModal').classList.add('active');
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .getOrderDetails(id);
+    }
+
+    function printCurrentOrder() {
+      closeModal('viewOrderModal');
+      if (currentOrderData) {
+        document.getElementById('invoicePreview').innerHTML = generateInvoiceHtml(currentOrderData, false);
+        setTimeout(printInvoice, 100);
+      }
+    }
+
+    // Giveaway
+    function populateGiveawayProducts() {
+      const options = products.filter(p => p.status === 'active').map(p => 
+        `<option value="${p.id}">${p.name}</option>`
+      ).join('');
+      document.getElementById('giveawayProduct').innerHTML = '<option value="">Select...</option>' + options;
+    }
+
+    function saveGiveaway() {
+      const data = {
+        date: document.getElementById('giveawayDate').value,
+        productId: document.getElementById('giveawayProduct').value,
+        quantity: parseInt(document.getElementById('giveawayQty').value) || 0,
+        location: document.getElementById('giveawayLocation').value,
+        notes: document.getElementById('giveawayNotes').value
+      };
+      
+      if (!data.productId || data.quantity <= 0) {
+        showToast('Select product and quantity', 'error');
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          showToast('Giveaway recorded');
+          document.getElementById('giveawayQty').value = '';
+          document.getElementById('giveawayNotes').value = '';
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .saveGiveaway(data);
+    }
+
+    function renderGiveaways() {
+      document.getElementById('giveawayTable').innerHTML = giveaways.map(g => {
+        const p = products.find(x => x.id === g.productId);
+        return `
+        <tr>
+          <td>${formatDate(g.date)}</td>
+          <td>${p ? p.name : 'Unknown'}</td>
+          <td>${g.quantity}</td>
+          <td>${g.location}</td>
+          <td>${g.notes || '-'}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('${g.id}')">Delete</button>
+          </td>
+        </tr>
+      `}).join('') || '<tr><td colspan="6" style="text-align:center;">No giveaways</td></tr>';
+    }
+
+    // Retail Sales
+    function renderRetailSales() {
+      const location = document.getElementById('retailViewLocation').value;
+      const sales = retailSales.filter(s => s.location === location || s.retailLocation === location);
+      
+      const total = sales.reduce((sum, s) => sum + (s.finalTotal || s.netTotal), 0);
+      document.getElementById('retailTotalSales').textContent = '' + formatNumber(total);
+      
+      document.getElementById('retailTable').innerHTML = sales.map(s => `
+        <tr>
+          <td>${s.orderId || s.id}</td>
+          <td>${formatDate(s.date)}</td>
+          <td>${s.customerName}</td>
+          <td>${s.customerPhone}</td>
+          <td>${formatNumber(s.netTotal)}</td>
+          <td>${formatNumber(s.adjustment || 0)}</td>
+          <td>${formatNumber((s.finalTotal || s.netTotal))}</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="editRetailAdjustment('${s.orderId || s.id}', ${s.netTotal}, ${s.adjustment || 0})">Edit</button>
+            <button class="btn btn-sm btn-primary" onclick="viewOrder('${s.orderId || s.id}')">View</button>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="8" style="text-align:center;">No sales</td></tr>';
+    }
+
+    function openRetailEntryModal() {
+      document.getElementById('retailEntryModal').classList.add('active');
+    }
+
+    function saveRetailEntry() {
+      const data = {
+        date: document.getElementById('retailEntryDate').value,
+        location: document.getElementById('retailEntryLocation').value,
+        customerName: document.getElementById('retailEntryCustomer').value,
+        customerPhone: document.getElementById('retailEntryPhone').value,
+        customerAddress: document.getElementById('retailEntryAddress').value,
+        amount: parseFloat(document.getElementById('retailEntryAmount').value) || 0,
+        adjustment: parseFloat(document.getElementById('retailEntryAdjustment').value) || 0
+      };
+      
+      if (!data.customerName || data.amount <= 0) {
+        showToast('Enter customer and amount', 'error');
+        return;
+      }
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function() {
+          hideLoading();
+          closeModal('retailEntryModal');
+          showToast('Entry saved');
+          loadAllData();
+        })
+        .saveRetailSale({
+          orderId: 'RT' + Date.now(),
+          date: data.date,
+          location: data.location,
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          customerAddress: data.customerAddress,
+          items: [{productName: 'Direct Entry', quantity: 1, price: data.amount, total: data.amount}],
+          netTotal: data.amount,
+          adjustment: data.adjustment,
+          finalTotal: data.amount + data.adjustment
+        });
+    }
+
+    function editRetailAdjustment(orderId, currentAmount, currentAdjustment) {
+      document.getElementById('adjustmentOrderId').value = orderId;
+      document.getElementById('adjustmentCurrent').value = '' + formatNumber(currentAmount);
+      document.getElementById('adjustmentValue').value = currentAdjustment;
+      document.getElementById('adjustmentNew').value = '' + formatNumber(currentAmount + currentAdjustment);
+      document.getElementById('adjustmentModal').classList.add('active');
+    }
+
+    document.getElementById('adjustmentValue')?.addEventListener('input', function() {
+      const current = parseFloat(document.getElementById('adjustmentCurrent').value.replace(/[^0-9.-]+/g,"")) || 0;
+      const adj = parseFloat(this.value) || 0;
+      document.getElementById('adjustmentNew').value = '' + formatNumber(current + adj);
+    });
+
+    function saveAdjustment() {
+      const orderId = document.getElementById('adjustmentOrderId').value;
+      const adjustment = parseFloat(document.getElementById('adjustmentValue').value) || 0;
+      
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          closeModal('adjustmentModal');
+          showToast('Adjustment saved');
+          loadAllData();
+        })
+        .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+        .updateRetailSaleAdjustment(orderId, adjustment);
+    }
+
+    // Reports
+    function updateReportFilters() {
+      const type = document.getElementById('reportType').value;
+      const group = document.getElementById('reportFilterGroup');
+      const label = document.getElementById('reportFilterLabel');
+      const select = document.getElementById('reportFilter');
+      
+      group.style.display = 'block';
+      
+      if (type === 'sales') {
+        label.textContent = 'Filter By';
+        select.innerHTML = '<option value="all">All</option>' +
+          '<optgroup label="Dealers">' + 
+          dealers.map(d => `<option value="d_${d.id}">${d.name}</option>`).join('') +
+          '</optgroup><optgroup label="Officers">' +
+          [...new Set(dealers.map(d => d.officer))].map(o => `<option value="o_${o}">${o}</option>`).join('') +
+          '</optgroup>';
+      } else if (type === 'stock') {
+        label.textContent = 'Product';
+        select.innerHTML = '<option value="all">All Products</option>' +
+          products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      } else if (type === 'transfer') {
+        group.style.display = 'none';
+      } else if (type === 'payment') {
+        label.textContent = 'Dealer';
+        select.innerHTML = '<option value="all">All Dealers</option>' +
+          dealers.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+      }
+    }
+
+    function generateReport() {
+      const type = document.getElementById('reportType').value;
+      const fromDate = document.getElementById('reportFromDate').value;
+      const toDate = document.getElementById('reportToDate').value;
+      const filter = document.getElementById('reportFilter').value;
+      
+      showLoading();
+      
+      if (type === 'sales') {
+        const filterType = filter.startsWith('o_') ? 'officer' : 'dealer';
+        const filterValue = filter.substring(2);
+        
+        google.script.run
+          .withSuccessHandler(function(data) {
+            hideLoading();
+            const result = JSON.parse(data);
+            
+            document.getElementById('repMetric1Label').textContent = 'Total Qty';
+            document.getElementById('repMetric1').textContent = result.totalQty;
+            document.getElementById('repMetric2Label').textContent = 'Total Amount';
+            document.getElementById('repMetric2').textContent = '' + formatNumber(result.totalAmount);
+            document.getElementById('repMetric3Label').textContent = 'Commission';
+            document.getElementById('repMetric3').textContent = '' + formatNumber(result.totalCommission);
+            document.getElementById('repMetric3Card').style.display = 'block';
+            
+            document.getElementById('reportTableHead').innerHTML = `
+              <tr>
+                <th>Product</th>
+                <th>Total Qty</th>
+                <th>Total Amount</th>
+                <th>Commission</th>
+              </tr>
+            `;
+            
+            document.getElementById('reportTableBody').innerHTML = result.products.map(p => `
+              <tr>
+                <td><strong>${p.name}</strong></td>
+                <td>${p.qty}</td>
+                <td>${formatNumber(p.amount)}</td>
+                <td>${formatNumber(p.commission)}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="4" style="text-align:center;">No data</td></tr>';
+            
+            document.getElementById('reportResults').style.display = 'block';
+          })
+          .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+          .getSalesReport(fromDate, toDate, filterType, filterValue === 'all' ? 'all' : filterValue);
+          
+      } else if (type === 'stock') {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            hideLoading();
+            const result = JSON.parse(data);
+            
+            document.getElementById('repMetric1Label').textContent = 'Total Qty Changed';
+            document.getElementById('repMetric1').textContent = result.totalQty;
+            document.getElementById('repMetric2Label').textContent = 'Total Entries';
+            document.getElementById('repMetric2').textContent = result.entries.length;
+            document.getElementById('repMetric3Card').style.display = 'none';
+            
+            document.getElementById('reportTableHead').innerHTML = `
+              <tr>
+                <th>Product</th>
+                <th>Location</th>
+                <th>Quantity</th>
+                <th>Notes</th>
+              </tr>
+            `;
+            
+            document.getElementById('reportTableBody').innerHTML = result.entries.map(e => `
+              <tr>
+                <td>${e.productName}</td>
+                <td>${e.location}</td>
+                <td>${e.quantity > 0 ? '+' : ''}${e.quantity}</td>
+                <td>${e.notes || '-'}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="4" style="text-align:center;">No data</td></tr>';
+            
+            document.getElementById('reportResults').style.display = 'block';
+          })
+          .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+          .getStockReport(fromDate, toDate, filter);
+          
+      } else if (type === 'transfer') {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            hideLoading();
+            const result = JSON.parse(data);
+            
+            document.getElementById('repMetric1Label').textContent = 'Total Items';
+            document.getElementById('repMetric1').textContent = result.totalItems;
+            document.getElementById('repMetric2Label').textContent = 'Total Transfers';
+            document.getElementById('repMetric2').textContent = result.transfers.length;
+            document.getElementById('repMetric3Card').style.display = 'none';
+            
+            document.getElementById('reportTableHead').innerHTML = `
+              <tr>
+                <th>Date</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Products</th>
+                <th>Total Qty</th>
+              </tr>
+            `;
+            
+            document.getElementById('reportTableBody').innerHTML = result.transfers.map(t => `
+              <tr>
+                <td>${formatDate(t.date)}</td>
+                <td>${t.from}</td>
+                <td>${t.to}</td>
+                <td>${t.items.map(i => i.productName).join(', ')}</td>
+                <td>${t.totalQty}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="5" style="text-align:center;">No data</td></tr>';
+            
+            document.getElementById('reportResults').style.display = 'block';
+          })
+          .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+          .getTransferReport(fromDate, toDate);
+          
+      } else if (type === 'payment') {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            hideLoading();
+            const result = JSON.parse(data);
+            
+            document.getElementById('repMetric1Label').textContent = 'Total Transactions';
+            document.getElementById('repMetric1').textContent = result.count;
+            document.getElementById('repMetric2Label').textContent = 'Total Amount';
+            document.getElementById('repMetric2').textContent = '' + formatNumber(result.totalAmount);
+            document.getElementById('repMetric3Card').style.display = 'none';
+            
+            document.getElementById('reportTableHead').innerHTML = `
+              <tr>
+                <th>Date</th>
+                <th>Dealer</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Notes</th>
+              </tr>
+            `;
+            
+            document.getElementById('reportTableBody').innerHTML = result.payments.map(p => `
+              <tr>
+                <td>${formatDate(p.date)}</td>
+                <td>${p.dealerName}</td>
+                <td>${p.type}</td>
+                <td>${formatNumber(p.amount)}</td>
+                <td>${p.notes || '-'}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="5" style="text-align:center;">No data</td></tr>';
+            
+            document.getElementById('reportResults').style.display = 'block';
+          })
+          .withFailureHandler(function(err) { hideLoading(); showToast((err && err.message) || String(err) || 'Server error', 'error'); })
+          .getPaymentReport(fromDate, toDate, filter);
+      }
+    }
+
+    // Utility functions
+    function formatNumber(num) {
+      if (!num) return '0';
+      const str = Math.abs(num).toFixed(2);
+      const parts = str.split('.');
+      let intPart = parts[0];
+      const decPart = parts[1];
+      
+      let result = '';
+      let count = 0;
+      for (let i = intPart.length - 1; i >= 0; i--) {
+        if (count === 3 || (count > 3 && (count - 3) % 2 === 0)) {
+          result = ',' + result;
+        }
+        result = intPart[i] + result;
+        count++;
+      }
+      return result + '.' + decPart;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-GB');
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.remove('active');
+    }
+
+    // Close modals on outside click
+    window.onclick = function(event) {
+      if (event.target.classList.contains('modal')) {
+        event.target.classList.remove('active');
+      }
+    }
+  </script>
+</body>
+</html>
