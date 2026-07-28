@@ -1072,7 +1072,7 @@ const Orders = () => {
 
       {/* Shipping Detail Dialog */}
       <Dialog open={shippingDialogOpen} onOpenChange={(v) => { if (!v) { setShippingDialogOpen(false); setShippingOrder(null); } }}>
-        <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-hidden flex flex-col !p-0 gap-0">
+        <DialogContent className="sm:max-w-2xl max-h-[86vh] sm:max-h-[92vh] overflow-hidden flex flex-col !p-0 gap-0">
           <DialogHeader className={cn("px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-slate-200/80", headerBgClass ? `${headerBgClass} sm:bg-transparent` : '')}>
             <DialogTitle className="flex items-center gap-2.5">
               <div className={cn("h-9 w-9 rounded-xl flex items-center justify-center shrink-0",
@@ -1345,9 +1345,10 @@ const Orders = () => {
             )}
           </div>
           {/* Fixed footer: keeps action buttons + PC shipping status visible while content scrolls */}
-          <DialogFooter className="!m-0 border-t bg-white p-3 sm:p-4 flex flex-col gap-2 sm:justify-end mb-3 sm:mb-0">
+          {/* Force flex-col on ALL sizes including sm/PC — override shadcn DialogFooter sm:flex-row default with !sm:flex-col */}
+          <DialogFooter className="!m-0 border-t bg-white p-3 sm:p-4 !flex !flex-col !sm:flex-col gap-2 sm:gap-3 justify-end mb-6 sm:mb-0">
             {shippingDialogMode === 'view' ? (
-              <>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
                 <Button variant="outline" className="h-11 rounded-xl font-bold w-full sm:w-auto sm:flex-1" onClick={() => closeShippingDialog()}>
                   Close
                 </Button>
@@ -1358,10 +1359,10 @@ const Orders = () => {
                   <Edit className="w-3.5 h-3.5 mr-1.5" />
                   Edit Shipping
                 </Button>
-              </>
+              </div>
             ) : (
               <>
-                {/* PC-only shipping status — frozen above action buttons */}
+                {/* PC-only shipping status — frozen FULL WIDTH just above the action buttons */}
                 {shippingOrder && (
                   <div className="hidden sm:block w-full">
                     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm w-full">
@@ -1396,7 +1397,8 @@ const Orders = () => {
                     </div>
                   </div>
                 )}
-                <div className="flex flex-col sm:flex-row gap-2 sm:justify-end w-full">
+                {/* Action button row — FULL WIDTH on mobile (stacked), row on PC */}
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
                   {shippingOrder?.shipping && (
                     <Button variant="destructive" type="button" className="h-11 rounded-xl font-bold w-full sm:w-auto sm:order-first sm:mr-auto" onClick={handleDeleteShipping}>
                       <Trash2 className="w-4 h-4 mr-1.5" /> Delete Shipping
