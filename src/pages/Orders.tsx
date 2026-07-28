@@ -1181,15 +1181,16 @@ const Orders = () => {
 
             {shippingOrder && shippingDialogMode === 'edit' && (
               <div className="space-y-3 sm:pb-0 pb-8 mb-6 sm:mb-0">
-                <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden sticky top-[-0.75rem] sm:top-0 z-20 shadow-md -mx-4 sm:mx-0 px-4 sm:px-0 -mt-5 sm:-mt-2 pt-3 sm:pt-2 pb-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/95">
-                  <div className="px-2 py-2 sm:px-4 sm:py-2.5 border-b border-slate-200 bg-slate-50/80">
+                {/* Mobile-only shipping status — frozen at top */}
+                <div className="sm:hidden rounded-2xl border border-slate-200 bg-white overflow-hidden sticky top-[-0.75rem] z-20 shadow-md -mx-4 px-4 -mt-5 pt-3 pb-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/95">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50/80">
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-slate-500" />
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Shipping Status</div>
                     </div>
                   </div>
-                  <div className="p-2 sm:p-3.5 sm:px-4 sm:py-4">
-                    <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+                  <div className="p-2">
+                    <div className="grid grid-cols-5 gap-1.5">
                       {([
                         { k: 'pending',     label: 'Pending',     sub: 'Not booked yet', cls: 'bg-slate-100 text-slate-700 hover:bg-slate-200 data-[active=true]:bg-slate-600 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:border-transparent', icon: <Clock className="w-4 h-4" /> },
                         { k: 'in_progress', label: 'In Transit', sub: 'Booked / shipped', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200 data-[active=true]:bg-blue-600 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:border-transparent', icon: <Truck className="w-4 h-4" /> },
@@ -1199,15 +1200,10 @@ const Orders = () => {
                       ] as const).map((opt) => {
                         const active = (shippingForm.status || 'pending') === opt.k || (opt.k === 'completed' && shippingForm.isComplete);
                         return (
-                          <Button key={opt.k} type="button" variant="outline" data-active={active} title={`${opt.label}: ${opt.sub}`} className={cn("h-auto rounded-lg sm:rounded-xl text-[10px] font-black uppercase border-slate-200 flex flex-col items-center justify-center gap-0 sm:gap-1.5 py-2 px-1 sm:py-3 sm:px-2 text-center sm:text-left w-full aspect-square sm:aspect-auto h-12 sm:h-auto", opt.cls)} onClick={() => { const isCompleted = opt.k === 'completed'; setShippingForm(prev => ({ ...prev, status: opt.k, isComplete: isCompleted })); }}>
-                            <div className="flex items-center justify-center sm:justify-between w-full relative">
-                              <div className="sm:hidden">{opt.icon}</div>
-                              <div className="hidden sm:flex w-full items-center justify-between">{opt.icon}{active && <Check className="w-3.5 h-3.5 opacity-90" />}</div>
-                              {active && <div className="sm:hidden absolute -top-0.5 -right-0.5"><Check className="w-3 h-3 opacity-90" /></div>}
-                            </div>
-                            <div className="hidden sm:block w-full leading-tight">
-                              <div className="font-black text-[11px]">{opt.label}</div>
-                              <div className="font-bold normal-case opacity-80 text-[9.5px]">{opt.sub}</div>
+                          <Button key={opt.k} type="button" variant="outline" data-active={active} title={`${opt.label}: ${opt.sub}`} className={cn("h-auto rounded-lg text-[10px] font-black uppercase border-slate-200 flex flex-col items-center justify-center gap-0 py-2 px-1 text-center w-full aspect-square h-12", opt.cls)} onClick={() => { const isCompleted = opt.k === 'completed'; setShippingForm(prev => ({ ...prev, status: opt.k, isComplete: isCompleted })); }}>
+                            <div className="flex items-center justify-center w-full relative">
+                              <div>{opt.icon}</div>
+                              {active && <div className="absolute -top-0.5 -right-0.5"><Check className="w-3 h-3 opacity-90" /></div>}
                             </div>
                           </Button>
                         );
@@ -1348,8 +1344,8 @@ const Orders = () => {
               </div>
             )}
           </div>
-          {/* Fixed footer: keeps action buttons visible while content scrolls */}
-          <DialogFooter className="!m-0 border-t bg-white p-3 sm:p-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
+          {/* Fixed footer: keeps action buttons + PC shipping status visible while content scrolls */}
+          <DialogFooter className="!m-0 border-t bg-white p-3 sm:p-4 flex flex-col gap-2 sm:justify-end mb-3 sm:mb-0">
             {shippingDialogMode === 'view' ? (
               <>
                 <Button variant="outline" className="h-11 rounded-xl font-bold w-full sm:w-auto sm:flex-1" onClick={() => closeShippingDialog()}>
@@ -1365,18 +1361,55 @@ const Orders = () => {
               </>
             ) : (
               <>
-                {shippingOrder?.shipping && (
-                  <Button variant="destructive" type="button" className="h-11 rounded-xl font-bold w-full sm:w-auto sm:order-first sm:mr-auto" onClick={handleDeleteShipping}>
-                    <Trash2 className="w-4 h-4 mr-1.5" /> Delete Shipping
-                  </Button>
+                {/* PC-only shipping status — frozen above action buttons */}
+                {shippingOrder && (
+                  <div className="hidden sm:block w-full">
+                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm w-full">
+                      <div className="px-4 py-2 border-b border-slate-200 bg-slate-50/80">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-slate-500" />
+                          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Shipping Status</div>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-5 gap-2 w-full">
+                          {([
+                            { k: 'pending',     label: 'Pending',     sub: 'Not booked yet', cls: 'bg-slate-100 text-slate-700 hover:bg-slate-200 data-[active=true]:bg-slate-600 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:border-transparent', icon: <Clock className="w-4 h-4" /> },
+                            { k: 'in_progress', label: 'In Transit', sub: 'Booked / shipped', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200 data-[active=true]:bg-blue-600 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:border-transparent', icon: <Truck className="w-4 h-4" /> },
+                            { k: 'hold',        label: 'On Hold',     sub: 'Paused', cls: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 data-[active=true]:bg-yellow-400 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:border-transparent', icon: <PauseCircle className="w-4 h-4" /> },
+                            { k: 'cancelled',   label: 'Cancelled',   sub: 'Will not ship', cls: 'bg-red-100 text-red-700 hover:bg-red-200 data-[active=true]:bg-red-600 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:border-transparent', icon: <XCircle className="w-4 h-4" /> },
+                            { k: 'completed',   label: 'Delivered',   sub: 'Completed', cls: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 data-[active=true]:bg-emerald-600 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:border-transparent', icon: <CheckCircle2 className="w-4 h-4" /> },
+                          ] as const).map((opt) => {
+                            const active = (shippingForm.status || 'pending') === opt.k || (opt.k === 'completed' && shippingForm.isComplete);
+                            return (
+                              <Button key={opt.k} type="button" variant="outline" data-active={active} title={`${opt.label}: ${opt.sub}`} className={cn("h-auto rounded-xl text-[10px] font-black uppercase border-slate-200 flex flex-col items-center justify-start gap-1.5 py-3 px-2 text-left w-full", opt.cls)} onClick={() => { const isCompleted = opt.k === 'completed'; setShippingForm(prev => ({ ...prev, status: opt.k, isComplete: isCompleted })); }}>
+                                <div className="flex items-center justify-between w-full">{opt.icon}{active && <Check className="w-3.5 h-3.5 opacity-90" />}</div>
+                                <div className="w-full leading-tight">
+                                  <div className="font-black text-[11px]">{opt.label}</div>
+                                  <div className="font-bold normal-case opacity-80 text-[9.5px]">{opt.sub}</div>
+                                </div>
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                <Button variant="outline" className="h-11 rounded-xl font-bold w-full sm:w-auto sm:flex-1" onClick={() => { setShippingDialogMode('view'); setEditableOrder(null); }}>
-                  Back to View
-                </Button>
-                <Button className="h-11 rounded-xl font-bold w-full sm:w-auto sm:flex-1 bg-slate-900 hover:bg-slate-800 text-white" onClick={handleSaveShipping}>
-                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                  {((shippingForm.status || 'pending') === 'completed' || shippingForm.isComplete) ? 'Save & Mark Delivered' : 'Save Shipping Details'}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2 sm:justify-end w-full">
+                  {shippingOrder?.shipping && (
+                    <Button variant="destructive" type="button" className="h-11 rounded-xl font-bold w-full sm:w-auto sm:order-first sm:mr-auto" onClick={handleDeleteShipping}>
+                      <Trash2 className="w-4 h-4 mr-1.5" /> Delete Shipping
+                    </Button>
+                  )}
+                  <Button variant="outline" className="h-11 rounded-xl font-bold w-full sm:w-auto sm:flex-1" onClick={() => { setShippingDialogMode('view'); setEditableOrder(null); }}>
+                    Back to View
+                  </Button>
+                  <Button className="h-11 rounded-xl font-bold w-full sm:w-auto sm:flex-1 bg-slate-900 hover:bg-slate-800 text-white" onClick={handleSaveShipping}>
+                    <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                    {((shippingForm.status || 'pending') === 'completed' || shippingForm.isComplete) ? 'Save & Mark Delivered' : 'Save Shipping Details'}
+                  </Button>
+                </div>
               </>
             )}
           </DialogFooter>
