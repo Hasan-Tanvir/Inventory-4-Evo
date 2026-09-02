@@ -177,20 +177,23 @@ export default function CentralStock() {
   }, [rows, categories, search, categoryFilter]);
 
   const totals = useMemo(() => {
-    const t = grouped.reduce((acc, g) => acc + g.items.reduce((a, r) => ({
-      entriesDhaka: a.entriesDhaka + r.entriesDhaka,
-      entriesCtg: a.entriesCtg + r.entriesCtg,
-      entriesTotal: a.entriesTotal + r.entriesTotal,
-      soldDhaka: a.soldDhaka + r.soldDhaka,
-      soldCtg: a.soldCtg + r.soldCtg,
-      soldTotal: a.soldTotal + r.soldTotal,
-      curDhaka: a.curDhaka + r.curDhaka,
-      curCtg: a.curCtg + r.curCtg,
-      curTotal: a.curTotal + r.curTotal,
-    }), {
+    const t = {
       entriesDhaka: 0, entriesCtg: 0, entriesTotal: 0,
       soldDhaka: 0, soldCtg: 0, soldTotal: 0,
       curDhaka: 0, curCtg: 0, curTotal: 0,
+    };
+    grouped.forEach(g => {
+      g.items.forEach(r => {
+        t.entriesDhaka += r.entriesDhaka;
+        t.entriesCtg += r.entriesCtg;
+        t.entriesTotal += r.entriesTotal;
+        t.soldDhaka += r.soldDhaka;
+        t.soldCtg += r.soldCtg;
+        t.soldTotal += r.soldTotal;
+        t.curDhaka += r.curDhaka;
+        t.curCtg += r.curCtg;
+        t.curTotal += r.curTotal;
+      });
     });
     return t;
   }, [grouped]);
