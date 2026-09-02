@@ -33,6 +33,23 @@ const emptyItem = () => ({
 
 type OrderItemRow = ReturnType<typeof emptyItem>;
 
+const StockBadge = ({ dhaka, chittagong }: { dhaka: number; chittagong: number }) => (
+  <div className="flex items-center gap-1.5 text-[10px] font-black">
+    <span className={cn(
+      "px-1.5 py-0.5 rounded-md",
+      dhaka > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+    )}>
+      DHK:{dhaka}
+    </span>
+    <span className={cn(
+      "px-1.5 py-0.5 rounded-md",
+      chittagong > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+    )}>
+      CTG:{chittagong}
+    </span>
+  </div>
+);
+
 const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, removeItem, addItem, selectedProductIds }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   
@@ -62,6 +79,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
     border: '1px solid #e2e8f0',
     boxShadow: '0 20px 40px rgba(15, 23, 42, 0.12)'
   });
+
+  const allProducts = Array.isArray(products) ? products : [];
+  const selectedProduct = item.productId ? allProducts.find((p: any) => p && p.id === item.productId) : null;
 
   const updateDropdownPosition = () => {
     // Inline absolute dropdown does not need runtime repositioning.
@@ -139,14 +159,24 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                   onClick={() => selectProduct(product)}
                   className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors"
                 >
-                  <div className="font-bold text-slate-900">{product.name}</div>
-                  {product.version && <div className="text-[10px] text-slate-500 uppercase font-black">{product.version}</div>}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 truncate">{product.name}</div>
+                      {product.version && <div className="text-[10px] text-slate-500 uppercase font-black">{product.version}</div>}
+                    </div>
+                    <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                  </div>
                 </button>
               )) : (
                 <div className="px-4 py-3 text-sm text-slate-500 italic">No products found</div>
               )}
             </div>
           </div>
+          )}
+          {selectedProduct && (
+            <div className="mt-1.5">
+              <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
+            </div>
           )}
         </div>
         <div>
@@ -225,8 +255,13 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                   onClick={() => selectProduct(product)}
                   className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 whitespace-normal break-words"
                 >
-                  <span className="font-medium">{product.name}</span>
-                  {product.version && <span className="text-xs text-slate-500"> {product.version}</span>}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium">{product.name}</span>
+                      {product.version && <span className="text-xs text-slate-500"> {product.version}</span>}
+                    </div>
+                    <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                  </div>
                 </button>
               )) : (
                 <div className="px-3 py-2 text-sm text-slate-500">No matching products found.</div>
@@ -235,7 +270,13 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           </div>
         )}
 
-        <div className={cn("grid gap-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
+        {selectedProduct && (
+          <div className="mt-1">
+            <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
+          </div>
+        )}
+
+        <div className={cn("grid gap-2 mt-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
           <div>
             <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">Qty</label>
             <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-center outline-none" />
