@@ -137,7 +137,12 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           <GripVertical className="w-4 h-4" />
         </div>
         <div className="relative">
-          <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider">Product Description</label>
+          <div className="flex items-center justify-between mb-1.5 gap-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Product Description</label>
+            {selectedProduct && (
+              <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
+            )}
+          </div>
           <input
             ref={inputRef}
             autoComplete="off"
@@ -172,11 +177,6 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
               )}
             </div>
           </div>
-          )}
-          {selectedProduct && (
-            <div className="mt-1.5">
-              <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
-            </div>
           )}
         </div>
         <div>
@@ -226,6 +226,12 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
 
       {/* Mobile Compact Layout */}
       <div className="md:hidden space-y-2">
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Product</span>
+          {selectedProduct && (
+            <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
+          )}
+        </div>
         <div className="relative flex items-center justify-between gap-2">
           <div {...attributes} {...listeners} className="p-1 text-slate-300 cursor-grab active:cursor-grabbing">
             <GripVertical className="w-4 h-4" />
@@ -270,13 +276,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           </div>
         )}
 
-        {selectedProduct && (
-          <div className="mt-1">
-            <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
-          </div>
-        )}
-
-        <div className={cn("grid gap-2 mt-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
+        <div className={cn("grid gap-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
           <div>
             <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">Qty</label>
             <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-center outline-none" />
