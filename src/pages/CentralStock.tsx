@@ -29,14 +29,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ArrowUpToLine, Download, Settings2, Save, ArrowUpDown } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { GripVertical, ArrowUpToLine, Download, Settings2, Save, ChevronUp, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { useTabState } from '@/context/TabStateContext';
 
 const LS_KEY = 'central-stock-ui-v1';
-const TAB_PATH = '/central-stock';
 
 interface PersistedState {
   startDate: string;
@@ -68,12 +64,6 @@ const fmt = (n: number | undefined | null) => {
   return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
 };
 
-const csvEscape = (val: any) => {
-  const s = val === undefined || val === null ? '' : String(val);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-};
-
 interface RowShape {
   id: string;
   name: string;
@@ -87,13 +77,16 @@ interface RowShape {
 }
 
 const SortableProductRow = ({
-  row, idx, onMoveToTop, lastInCategory, onOpenPosition,
+  row, idx, totalInCat, onMoveToTop, onMoveUp, onMoveDown, onSetPosition, lastInCategory,
 }: {
   row: RowShape;
   idx: number;
+  totalInCat: number;
   onMoveToTop: (productId: string) => void;
+  onMoveUp: (productId: string) => void;
+  onMoveDown: (productId: string) => void;
+  onSetPosition: (productId: string, pos: number) => void;
   lastInCategory: boolean;
-  onOpenPosition: (productId: string) => void;
 }) => {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
@@ -114,35 +107,64 @@ const SortableProductRow = ({
         lastInCategory && "border-b-2 border-b-slate-300"
       )}
     >
-      <TableCell className="py-1.5 px-1 w-8 border-r border-slate-100 sticky left-0 bg-inherit z-[5] p-0 text-center">
-        <div {...attributes} {...listeners} className="inline-flex items-center justify-center w-8 h-6 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none">
-          <GripVertical className="w-3.5 h-3.5" />
+      <TableCell className="py-1.5 px-1 w-7 border-r border-slate-100 sticky left-0 bg-inherit z-[5] p-0 text-center">
+        <div {...attributes} {...listeners} className="inline-flex items-center justify-center w-7 h-6 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none">
+          <GripVertical className="w-3 h-3" />
         </div>
       </TableCell>
-      <TableCell className="py-1.5 px-1 w-8 border-r border-slate-100 sticky left-[32px] bg-inherit z-[5] p-0 text-center">
+      <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[28px] bg-inherit z-[5] p-0 text-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onMoveUp(row.id)}
+          disabled={idx === 0}
+          title="Move up one position"
+          className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </Button>
+      </TableCell>
+      <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[52px] bg-inherit z-[5] p-0 text-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onMoveDown(row.id)}
+          disabled={idx === totalInCat - 1}
+          title="Move down one position"
+          className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </Button>
+      </TableCell>
+      <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[76px] bg-inherit z-[5] p-0 text-center">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => onMoveToTop(row.id)}
+          disabled={idx === 0}
           title="Move to top of category"
-          className="h-7 w-7 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+          className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
         >
-          <ArrowUpToLine className="w-3.5 h-3.5" />
+          <ArrowUpToLine className="w-3 h-3" />
         </Button>
       </TableCell>
-      <TableCell className="py-1.5 px-1 w-8 border-r border-slate-100 sticky left-[64px] bg-inherit z-[5] p-0 text-center">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onOpenPosition(row.id)}
-          title="Edit position (before/after another product)"
-          className="h-7 w-7 rounded-md text-purple-500 hover:text-purple-700 hover:bg-purple-50"
-        >
-          <ArrowUpDown className="w-3.5 h-3.5" />
-        </Button>
+      <TableCell className="py-1.5 px-1 w-9 border-r border-slate-100 sticky left-[100px] bg-inherit z-[5] p-0 text-center">
+        <input
+          type="number"
+          min={1}
+          max={totalInCat}
+          value={idx + 1}
+          onChange={e => {
+            const v = parseInt(e.target.value);
+            if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) onSetPosition(row.id, v - 1);
+          }}
+          onBlur={e => { if (e.target.value === '') e.target.value = String(idx + 1); }}
+          className="w-full h-6 text-center text-[9px] font-bold bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 tabular-nums"
+          title="Set exact position (1 to top)"
+        />
       </TableCell>
       <TableCell className={cn(
-        "py-1.5 px-2 border-r border-slate-100 sticky left-[96px] bg-inherit z-[5] w-[200px]",
+        "py-1.5 px-2 border-r border-slate-100 sticky left-[136px] bg-inherit z-[5] w-[190px]",
         row.status === 'inactive' && "line-through opacity-60"
       )}>
         <div className="font-bold text-slate-800 text-[11px] leading-tight truncate">{row.name}</div>
@@ -173,30 +195,14 @@ const SortableProductRow = ({
 export default function CentralStock() {
   const defaultStart = subtractDaysISO(getTodayISO(), 30);
   const defaultEnd = getTodayISO();
-  const { getTabState, saveTabState } = useTabState();
 
   const initial: PersistedState = useMemo(() => {
-    let tab: Partial<PersistedState> = {};
-    try {
-      const t = getTabState(TAB_PATH);
-      if (t && typeof t === 'object') tab = t as Partial<PersistedState>;
-    } catch { /* ignore */ }
-    let local: Partial<PersistedState> = {};
     try {
       const raw = typeof window !== 'undefined' ? window.localStorage.getItem(LS_KEY) : null;
-      if (raw) local = JSON.parse(raw) as Partial<PersistedState>;
+      if (raw) return { startDate: defaultStart, endDate: defaultEnd, search: '', categoryFilter: 'all', statusFilter: 'active', ...JSON.parse(raw) };
     } catch { /* ignore */ }
-    const merged: PersistedState = {
-      startDate: defaultStart,
-      endDate: defaultEnd,
-      search: '',
-      categoryFilter: 'all',
-      statusFilter: 'active',
-      ...local,
-      ...tab,
-    };
-    return merged;
-  }, [defaultStart, defaultEnd, getTabState]);
+    return { startDate: defaultStart, endDate: defaultEnd, search: '', categoryFilter: 'all', statusFilter: 'active' as const };
+  }, [defaultStart, defaultEnd]);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -210,12 +216,7 @@ export default function CentralStock() {
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>(initial.statusFilter);
   const [dirtyOrder, setDirtyOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
-  const saveTimerRef = useRef<any | null>(null);
-
-  const [showPositionDialog, setShowPositionDialog] = useState(false);
-  const [positioningProductId, setPositioningProductId] = useState<string>('');
-  const [positionMode, setPositionMode] = useState<'before' | 'after'>('after');
-  const [positionTargetId, setPositionTargetId] = useState<string>('');
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -244,8 +245,7 @@ export default function CentralStock() {
   useEffect(() => {
     const snap: PersistedState = { startDate, endDate, search, categoryFilter, statusFilter };
     try { window.localStorage.setItem(LS_KEY, JSON.stringify(snap)); } catch { /* ignore */ }
-    try { saveTabState(TAB_PATH, snap); } catch { /* ignore */ }
-  }, [startDate, endDate, search, categoryFilter, statusFilter, saveTabState]);
+  }, [startDate, endDate, search, categoryFilter, statusFilter]);
 
   const rows = useMemo<RowShape[]>(() => {
     const safeOrders = Array.isArray(orders) ? orders : [];
@@ -324,8 +324,7 @@ export default function CentralStock() {
     return m;
   }, [rows]);
 
-  // Sort productIds (per category) by Product.sortOrder ascending.
-  // sortOrder default = 0 so new products (no sortOrder yet) come FIRST (top of category).
+  // Sort productIds (per category) by Product.sortOrder ascending
   const sortedProductIdsByCategory = useMemo(() => {
     const safeProducts = Array.isArray(products) ? products : [];
     const filteredIds = new Set(rows.map(r => r.id));
@@ -341,8 +340,8 @@ export default function CentralStock() {
       ids.sort((a, b) => {
         const pa = safeProducts.find(p => p.id === a);
         const pb = safeProducts.find(p => p.id === b);
-        const oa = typeof pa?.sortOrder === 'number' && !Number.isNaN(pa.sortOrder) ? pa.sortOrder! : 0;
-        const ob = typeof pb?.sortOrder === 'number' && !Number.isNaN(pb.sortOrder) ? pb.sortOrder! : 0;
+        const oa = typeof pa?.sortOrder === 'number' ? pa.sortOrder! : Number.MAX_SAFE_INTEGER;
+        const ob = typeof pb?.sortOrder === 'number' ? pb.sortOrder! : Number.MAX_SAFE_INTEGER;
         if (oa !== ob) return oa - ob;
         return (pa?.name + pa?.version).localeCompare(pb?.name + pb?.version);
       });
@@ -372,6 +371,7 @@ export default function CentralStock() {
       const items = filterRows(ids);
       if (items.length) {
         ordered.push({ category: cat, items });
+        // Remove so we don't double emit
         ids.forEach(id => sortedProductIdsByCategory.delete(cat.id));
       }
     });
@@ -417,12 +417,12 @@ export default function CentralStock() {
     }, 700);
   };
 
-  const rebuildProductsWithNewOrder = (categoryId: string, idsInCategoryNewOrder: string[]) => {
+  const applyCategoryReorder = (categoryId: string, reordered: string[]) => {
     const safeCats = Array.isArray(categories) ? categories : [];
     const catOrderMap = new Map<string, string[]>();
     safeCats.forEach(c => catOrderMap.set(c.id, []));
     catOrderMap.set('', []);
-    catOrderMap.set(categoryId, idsInCategoryNewOrder);
+    catOrderMap.set(categoryId, reordered);
     sortedProductIdsByCategory.forEach((ids, cid) => {
       if (cid === categoryId) return;
       if (!catOrderMap.has(cid)) catOrderMap.set(cid, [...ids]);
@@ -435,8 +435,10 @@ export default function CentralStock() {
       ids.forEach(id => finalIds.push(id));
     });
     products.forEach(x => { if (!finalIds.includes(x.id)) finalIds.push(x.id); });
-    const byId = new Map(products.map(p => [p.id, p]));
-    return finalIds.map(id => byId.get(id)).filter(Boolean) as Product[];
+    const byId = new Map(products.map(x => [x.id, x]));
+    const reorderedProducts = finalIds.map(id => byId.get(id)).filter(Boolean) as Product[];
+    setProducts(reorderedProducts);
+    scheduleOrderPersist(reorderedProducts);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -454,10 +456,7 @@ export default function CentralStock() {
     const newIdx = idsInCat.indexOf(overId);
     if (oldIdx < 0 || newIdx < 0) return;
     const reordered = arrayMove(idsInCat, oldIdx, newIdx);
-
-    const reorderedProducts = rebuildProductsWithNewOrder(categoryId, reordered);
-    setProducts(reorderedProducts);
-    scheduleOrderPersist(reorderedProducts);
+    applyCategoryReorder(categoryId, reordered);
   };
 
   const handleMoveToTop = (productId: string) => {
@@ -468,72 +467,45 @@ export default function CentralStock() {
     const oldIdx = idsInCat.indexOf(productId);
     if (oldIdx <= 0) return;
     const reordered = arrayMove(idsInCat, oldIdx, 0);
-
-    const reorderedProducts = rebuildProductsWithNewOrder(categoryId, reordered);
-    setProducts(reorderedProducts);
-    scheduleOrderPersist(reorderedProducts);
+    applyCategoryReorder(categoryId, reordered);
   };
 
-  const handleOpenPosition = (productId: string) => {
+  const handleMoveUp = (productId: string) => {
     const p = products.find(x => x.id === productId);
     if (!p) return;
     const categoryId = p.categoryId || '';
     const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
-    const currentIndex = idsInCat.indexOf(productId);
-    const prevId = currentIndex > 0 ? idsInCat[currentIndex - 1] : '';
-    const nextId = currentIndex < idsInCat.length - 1 ? idsInCat[currentIndex + 1] : '';
-    setPositioningProductId(productId);
-    if (prevId) {
-      setPositionMode('after');
-      setPositionTargetId(prevId);
-    } else if (nextId) {
-      setPositionMode('before');
-      setPositionTargetId(nextId);
-    } else {
-      setPositionTargetId('');
-    }
-    setShowPositionDialog(true);
+    const oldIdx = idsInCat.indexOf(productId);
+    if (oldIdx <= 0) return;
+    const reordered = arrayMove(idsInCat, oldIdx, oldIdx - 1);
+    applyCategoryReorder(categoryId, reordered);
   };
 
-  const handleApplyPosition = async () => {
-    if (!positioningProductId || !positionTargetId) return;
-    if (positioningProductId === positionTargetId) return;
-    const p = products.find(x => x.id === positioningProductId);
+  const handleMoveDown = (productId: string) => {
+    const p = products.find(x => x.id === productId);
     if (!p) return;
     const categoryId = p.categoryId || '';
     const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
-    const withoutMoved = idsInCat.filter(id => id !== positioningProductId);
-    const targetIdx = withoutMoved.indexOf(positionTargetId);
-    if (targetIdx < 0) return;
-    const insertIdx = positionMode === 'before' ? targetIdx : targetIdx + 1;
-    const reordered = [
-      ...withoutMoved.slice(0, insertIdx),
-      positioningProductId,
-      ...withoutMoved.slice(insertIdx),
-    ];
-    const reorderedProducts = rebuildProductsWithNewOrder(categoryId, reordered);
-    setProducts(reorderedProducts);
-    scheduleOrderPersist(reorderedProducts);
-    setShowPositionDialog(false);
-    showSuccess(`Product moved ${positionMode} target`);
+    const oldIdx = idsInCat.indexOf(productId);
+    if (oldIdx < 0 || oldIdx >= idsInCat.length - 1) return;
+    const reordered = arrayMove(idsInCat, oldIdx, oldIdx + 1);
+    applyCategoryReorder(categoryId, reordered);
+  };
+
+  const handleSetPosition = (productId: string, newIdx: number) => {
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    const categoryId = p.categoryId || '';
+    const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
+    const oldIdx = idsInCat.indexOf(productId);
+    if (oldIdx < 0 || newIdx < 0 || newIdx >= idsInCat.length || oldIdx === newIdx) return;
+    const reordered = arrayMove(idsInCat, oldIdx, newIdx);
+    applyCategoryReorder(categoryId, reordered);
   };
 
   const safeCategories = Array.isArray(categories) ? categories : [];
   const productCount = grouped.reduce((a, g) => a + g.items.length, 0);
   const allFlatIds = useMemo(() => grouped.flatMap(g => g.items.map(r => r.id)), [grouped]);
-
-  // Position target candidates: products in the same category excluding the one being moved
-  const positionTargets = useMemo(() => {
-    const p = products.find(x => x.id === positioningProductId);
-    if (!p) return [] as Product[];
-    const categoryId = p.categoryId || '';
-    const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
-    const byId = new Map(products.map(x => [x.id, x]));
-    return idsInCat
-      .filter(id => id !== positioningProductId)
-      .map(id => byId.get(id))
-      .filter(Boolean) as Product[];
-  }, [positioningProductId, products, sortedProductIdsByCategory]);
 
   const handleSaveOrderNow = async () => {
     try {
@@ -547,20 +519,25 @@ export default function CentralStock() {
     }
   };
 
-  const buildExportRows = () => {
-    const dataRows: any[] = [];
-    dataRows.push([`Central Stock Report`]);
-    dataRows.push([`From: ${startDate}`, `To: ${endDate}`, `Status: ${statusFilter}`, `Category: ${categoryFilter === 'all' ? 'All' : (safeCategories.find(c => c.id === categoryFilter)?.name || categoryFilter)}`, `Search: "${search || ''}"`]);
-    dataRows.push([]);
-    dataRows.push([
-      '#', '', '', 'Product',
+  const handleExportExcel = () => {
+    const aoa: (string | number | undefined)[][] = [];
+    aoa.push([`Central Stock Report`]);
+    aoa.push([
+      `From: ${startDate}`, `To: ${endDate}`,
+      `Status: ${statusFilter}`,
+      `Category: ${categoryFilter === 'all' ? 'All' : (safeCategories.find(c => c.id === categoryFilter)?.name || categoryFilter)}`,
+      `Search: "${search || ''}"`,
+    ]);
+    aoa.push([]);
+    aoa.push([
+      'Pos', '', '', '', '', 'Product',
       '', 'Entry Qty', '', '',
       '', 'Sold Qty', '', '',
       '', 'Current Qty', '', '',
       'Lowest Slab Price', 'Retail Price',
     ]);
-    dataRows.push([
-      'Sort', 'Top', 'Pos', 'Name / Version / Status',
+    aoa.push([
+      '#', '↑', '↓', 'Top', 'Pos#', 'Name / Version / Status',
       'DHK', 'CTG', 'Total', '',
       'DHK', 'CTG', 'Total', '',
       'DHK', 'CTG', 'Total',
@@ -571,17 +548,18 @@ export default function CentralStock() {
       const gTot = g.items.reduce((a, r) => ({
         eT: a.eT + r.entriesTotal, sT: a.sT + r.soldTotal, cT: a.cT + r.curTotal,
       }), { eT: 0, sT: 0, cT: 0 });
-      dataRows.push([
-        '', '', '', `■ ${g.category.name} (${g.items.length} item${g.items.length === 1 ? '' : 's'})`,
-        '', '', fmt(gTot.eT),
-        '', '', '', fmt(gTot.sT),
-        '', '', '', fmt(gTot.cT),
+      aoa.push([
+        '', '', '', '', '', `■ ${g.category.name} (${g.items.length} item${g.items.length === 1 ? '' : 's'})`,
+        '', '', gTot.eT,
+        '', '', '', gTot.sT,
+        '', '', '', gTot.cT,
         '', '',
       ]);
       g.items.forEach((r, idx) => {
         const status = r.status === 'inactive' ? ' [INACTIVE]' : '';
-        dataRows.push([
-          String(idx + 1), '^', '↕', `${r.name}${r.version ? ' - ' + r.version : ''}${status}`,
+        aoa.push([
+          String(idx + 1), '↑', '↓', '^', String(idx + 1),
+          `${r.name}${r.version ? ' - ' + r.version : ''}${status}`,
           r.entriesDhaka, r.entriesCtg, r.entriesTotal, '',
           r.soldDhaka, r.soldCtg, r.soldTotal, '',
           r.curDhaka, r.curCtg, r.curTotal,
@@ -590,45 +568,34 @@ export default function CentralStock() {
       });
     });
 
-    dataRows.push([]);
-    dataRows.push([
-      '', '', '', 'GRAND TOTAL',
+    aoa.push([]);
+    aoa.push([
+      '', '', '', '', '', 'GRAND TOTAL',
       totals.entriesDhaka, totals.entriesCtg, totals.entriesTotal,
       '', totals.soldDhaka, totals.soldCtg, totals.soldTotal,
       '', totals.curDhaka, totals.curCtg, totals.curTotal,
       '', '',
     ]);
-    return dataRows;
-  };
 
-  const handleExportCSV = () => {
-    const dataRows = buildExportRows();
-    const csv = dataRows.map(row => row.map(csvEscape).join(',')).join('\r\n');
-    const bom = '\uFEFF';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Central-Stock_${startDate}_${endDate}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 500);
-  };
-
-  const handleExportXLSX = () => {
-    const dataRows = buildExportRows();
-    const ws = XLSX.utils.aoa_to_sheet(dataRows);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
-      { wch: 6 }, { wch: 5 }, { wch: 5 }, { wch: 40 },
-      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 2 },
-      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 2 },
-      { wch: 10 }, { wch: 10 }, { wch: 12 },
-      { wch: 16 }, { wch: 12 },
+      { wch: 5 }, { wch: 4 }, { wch: 4 }, { wch: 5 }, { wch: 5 }, { wch: 38 },
+      { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 3 },
+      { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 3 },
+      { wch: 9 }, { wch: 9 }, { wch: 10 },
+      { wch: 14 }, { wch: 12 },
+    ];
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 18 } },
+      { s: { r: 3, c: 6 }, e: { r: 3, c: 8 } },
+      { s: { r: 3, c: 10 }, e: { r: 3, c: 12 } },
+      { s: { r: 3, c: 14 }, e: { r: 3, c: 16 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Central Stock');
     XLSX.writeFile(wb, `Central-Stock_${startDate}_${endDate}.xlsx`);
+    showSuccess('Excel file downloaded');
   };
 
   return (
@@ -657,19 +624,11 @@ export default function CentralStock() {
               )}
               <Button
                 size="sm"
-                onClick={handleExportXLSX}
-                className="h-8 text-[11px] font-black bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg shadow-sm"
-              >
-                <Download className="w-3.5 h-3.5 mr-1" />
-                Excel (.xlsx)
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleExportCSV}
+                onClick={handleExportExcel}
                 className="h-8 text-[11px] font-black bg-slate-900 hover:bg-slate-800 text-white rounded-lg shadow-sm"
               >
                 <Download className="w-3.5 h-3.5 mr-1" />
-                Excel (.csv)
+                Excel (.xlsx)
               </Button>
             </div>
           </div>
@@ -685,19 +644,54 @@ export default function CentralStock() {
                 <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">To Date</Label>
                 <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 text-xs font-bold" />
               </div>
-              <div className="col-span-2 md:col-span-2">
-                <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Status</Label>
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value as any)}
-                  className="w-full h-9 px-3 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="active">Active only (default)</option>
-                  <option value="inactive">Inactive only</option>
-                  <option value="all">All products</option>
-                </select>
+              <div className="col-span-2 md:col-span-4">
+                <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Product Status</Label>
+                <div className="flex items-center gap-1 h-9 bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+                  <button
+                    onClick={() => setStatusFilter('active')}
+                    className={cn(
+                      "flex-1 h-full text-[10px] font-black uppercase tracking-wider rounded-md transition-all duration-150",
+                      statusFilter === 'active'
+                        ? "bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Active
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('inactive')}
+                    className={cn(
+                      "flex-1 h-full text-[10px] font-black uppercase tracking-wider rounded-md transition-all duration-150",
+                      statusFilter === 'inactive'
+                        ? "bg-white text-red-700 shadow-sm ring-1 ring-red-200"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                      Inactive
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={cn(
+                      "flex-1 h-full text-[10px] font-black uppercase tracking-wider rounded-md transition-all duration-150",
+                      statusFilter === 'all'
+                        ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-300"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                      All
+                    </span>
+                  </button>
+                </div>
               </div>
-              <div className="col-span-2 md:col-span-3">
+              <div className="col-span-2 md:col-span-2">
                 <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Category</Label>
                 <select
                   value={categoryFilter}
@@ -708,7 +702,7 @@ export default function CentralStock() {
                   {safeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="col-span-2 md:col-span-3">
+              <div className="col-span-2 md:col-span-2">
                 <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
                   <SearchTextIcon /> Search
                 </Label>
@@ -723,26 +717,30 @@ export default function CentralStock() {
               <Table className="text-xs border-collapse">
                 <TableHeader>
                   <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200">
-                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-8">
+                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-7">
                       <Settings2 className="w-3 h-3 mx-auto text-slate-500" />
                     </TableHead>
-                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[32px] bg-slate-100 z-[50] w-8">
+                    <TableHead className="py-2 px-0.5 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[28px] bg-slate-100 z-[50] w-6">
+                      ↑
+                    </TableHead>
+                    <TableHead className="py-2 px-0.5 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[52px] bg-slate-100 z-[50] w-6">
+                      ↓
+                    </TableHead>
+                    <TableHead className="py-2 px-0.5 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[76px] bg-slate-100 z-[50] w-6">
+                      Top
+                    </TableHead>
+                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[100px] bg-slate-100 z-[50] w-9">
                       #
                     </TableHead>
-                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[64px] bg-slate-100 z-[50] w-8">
-                      Pos
-                    </TableHead>
-                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[200px] border-r border-slate-200 sticky top-0 left-[96px] bg-slate-100 z-[50]">
+                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[190px] border-r border-slate-200 sticky top-0 left-[136px] bg-slate-100 z-[50]">
                       Product
                     </TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-600 text-center border-r border-slate-200 bg-slate-50 z-[30] sticky top-0" colSpan={3}>
                       Entry Qty
                     </TableHead>
-                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-500 text-center border-r border-slate-200 sticky top-0 z-[30] w-3"></TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-red-700 text-center border-r border-slate-200 bg-red-50/60 z-[30] sticky top-0" colSpan={3}>
                       Sold Qty
                     </TableHead>
-                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-500 text-center border-r border-slate-200 sticky top-0 z-[30] w-3"></TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-emerald-800 text-center border-r border-slate-200 bg-emerald-50/60 z-[30] sticky top-0" colSpan={3}>
                       Current Qty
                     </TableHead>
@@ -754,38 +752,44 @@ export default function CentralStock() {
                     </TableHead>
                   </TableRow>
                   <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200">
-                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[40px] left-0 bg-slate-50 z-[49] w-8">
+                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-7">
                       Drag
                     </TableHead>
-                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[40px] left-[32px] bg-slate-50 z-[49] w-8">
-                      Top
+                    <TableHead className="py-1.5 px-0.5 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[28px] bg-slate-50 z-[49] w-6">
+                      Up
                     </TableHead>
-                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[40px] left-[64px] bg-slate-50 z-[49] w-8">
-                      Edit
+                    <TableHead className="py-1.5 px-0.5 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[52px] bg-slate-50 z-[49] w-6">
+                      Down
                     </TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[40px] left-[96px] bg-slate-50 z-[49]">
+                    <TableHead className="py-1.5 px-0.5 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[76px] bg-slate-50 z-[49] w-6">
+                      Jump
+                    </TableHead>
+                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[100px] bg-slate-50 z-[49] w-9">
+                      Pos
+                    </TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-[136px] bg-slate-50 z-[49]">
                       Name / Version
                     </TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[40px] z-[29]">DHK</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[40px] z-[29]">CTG</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-800 text-center border-r border-slate-200 bg-slate-100/70 sticky top-[40px] z-[29]">Total</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-right border-r border-slate-200 sticky top-[40px] z-[29] w-3"></TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[40px] z-[29]">DHK</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[40px] z-[29]">CTG</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-red-800 text-center border-r border-slate-200 bg-red-50/40 sticky top-[40px] z-[29]">Total</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-right border-r border-slate-200 sticky top-[40px] z-[29] w-3"></TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[40px] z-[29]">DHK</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[40px] z-[29]">CTG</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-emerald-900 text-center border-r border-slate-200 bg-emerald-50/50 sticky top-[40px] z-[29]">Total</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-indigo-800 text-right border-r border-slate-200 sticky top-[40px] z-[29]">Price</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-700 text-right sticky top-[40px] z-[29]">Price</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">CTG</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-800 text-center border-r border-slate-200 bg-slate-100/70 sticky top-[36px] z-[29]">Total</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-right border-r border-slate-200 sticky top-[36px] z-[29] w-3"></TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">CTG</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-red-800 text-center border-r border-slate-200 bg-red-50/40 sticky top-[36px] z-[29]">Total</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-right border-r border-slate-200 sticky top-[36px] z-[29] w-3"></TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">CTG</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-emerald-900 text-center border-r border-slate-200 bg-emerald-50/50 sticky top-[36px] z-[29]">Total</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-indigo-800 text-right border-r border-slate-200 sticky top-[36px] z-[29]">Price</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-700 text-right sticky top-[36px] z-[29]">Price</TableHead>
                   </TableRow>
                 </TableHeader>
                 <SortableContext items={allFlatIds} strategy={verticalListSortingStrategy} disabled={allFlatIds.length === 0}>
                   <TableBody>
                     {grouped.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={16} className="py-10 text-center text-xs text-slate-400 italic">
+                        <TableCell colSpan={19} className="py-10 text-center text-xs text-slate-400 italic">
                           No products match your filters
                         </TableCell>
                       </TableRow>
@@ -795,13 +799,16 @@ export default function CentralStock() {
                       const gTot = g.items.reduce((a, r) => ({
                         eT: a.eT + r.entriesTotal, sT: a.sT + r.soldTotal, cT: a.cT + r.curTotal,
                       }), { eT: 0, sT: 0, cT: 0 });
+                      const catTotal = g.items.length;
                       return (
                         <React.Fragment key={g.category.id}>
                           <TableRow className="bg-slate-900/90 hover:bg-slate-900/90 border-b border-slate-800">
-                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-0 bg-slate-900/90 z-[10] w-8"></TableCell>
-                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-[32px] bg-slate-900/90 z-[10] w-8"></TableCell>
-                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-[64px] bg-slate-900/90 z-[10] w-8"></TableCell>
-                            <TableCell className="py-1.5 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky left-[96px] bg-slate-900/90 z-[10]">
+                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-0 bg-slate-900/90 z-[10] w-7"></TableCell>
+                            <TableCell className="py-1.5 px-0.5 border-r border-slate-800/60 sticky left-[28px] bg-slate-900/90 z-[10] w-6"></TableCell>
+                            <TableCell className="py-1.5 px-0.5 border-r border-slate-800/60 sticky left-[52px] bg-slate-900/90 z-[10] w-6"></TableCell>
+                            <TableCell className="py-1.5 px-0.5 border-r border-slate-800/60 sticky left-[76px] bg-slate-900/90 z-[10] w-6"></TableCell>
+                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-[100px] bg-slate-900/90 z-[10] w-9 text-[9px] font-bold text-slate-400 text-center tabular-nums">{catTotal}</TableCell>
+                            <TableCell className="py-1.5 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky left-[136px] bg-slate-900/90 z-[10]">
                               <span className="opacity-60 mr-1.5">{String.fromCharCode(9632)}</span>
                               {catName}
                               <span className="ml-2 font-normal text-slate-300 text-[9px] tracking-wide">
@@ -829,8 +836,11 @@ export default function CentralStock() {
                               key={r.id}
                               row={r}
                               idx={idx}
+                              totalInCat={g.items.length}
                               onMoveToTop={handleMoveToTop}
-                              onOpenPosition={handleOpenPosition}
+                              onMoveUp={handleMoveUp}
+                              onMoveDown={handleMoveDown}
+                              onSetPosition={handleSetPosition}
                               lastInCategory={idx === g.items.length - 1}
                             />
                           ))}
@@ -839,10 +849,12 @@ export default function CentralStock() {
                     })}
                     {grouped.length > 0 && (
                       <TableRow className="bg-slate-800 hover:bg-slate-800 sticky bottom-0 z-[15] border-t-2 border-slate-700">
-                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-0 bg-slate-800 z-[16] w-8"></TableCell>
-                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-[32px] bg-slate-800 z-[16] w-8"></TableCell>
-                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-[64px] bg-slate-800 z-[16] w-8"></TableCell>
-                        <TableCell className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky bottom-0 left-[96px] bg-slate-800 z-[16]">
+                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-0 bg-slate-800 z-[16] w-7"></TableCell>
+                        <TableCell className="py-2 px-0.5 border-r border-slate-700 sticky bottom-0 left-[28px] bg-slate-800 z-[16] w-6"></TableCell>
+                        <TableCell className="py-2 px-0.5 border-r border-slate-700 sticky bottom-0 left-[52px] bg-slate-800 z-[16] w-6"></TableCell>
+                        <TableCell className="py-2 px-0.5 border-r border-slate-700 sticky bottom-0 left-[76px] bg-slate-800 z-[16] w-6"></TableCell>
+                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-[100px] bg-slate-800 z-[16] w-9"></TableCell>
+                        <TableCell className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky bottom-0 left-[136px] bg-slate-800 z-[16]">
                           Grand Total
                         </TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-blue-200 border-r border-slate-700">{fmt(totals.entriesDhaka)}</TableCell>
@@ -867,81 +879,6 @@ export default function CentralStock() {
           </div>
         </div>
       </DndContext>
-
-      {/* Position Edit Dialog */}
-      <Dialog open={showPositionDialog} onOpenChange={setShowPositionDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-black uppercase tracking-tight">
-              Edit Product Position
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="text-xs text-slate-500 font-bold">
-              Place the selected product:
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={positionMode === 'before' ? 'default' : 'outline'}
-                onClick={() => setPositionMode('before')}
-                className="h-9 text-xs font-bold"
-              >
-                Before Target
-              </Button>
-              <Button
-                type="button"
-                variant={positionMode === 'after' ? 'default' : 'outline'}
-                onClick={() => setPositionMode('after')}
-                className="h-9 text-xs font-bold"
-              >
-                After Target
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Target Product (same category)
-              </Label>
-              <Select value={positionTargetId} onValueChange={setPositionTargetId}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Select target product..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {positionTargets.length === 0 && (
-                    <div className="px-3 py-6 text-xs text-slate-400 text-center italic">
-                      No other products in this category
-                    </div>
-                  )}
-                  {positionTargets.map(p => (
-                    <SelectItem key={p.id} value={p.id} className="text-xs">
-                      <span className="font-bold">{p.name}</span>
-                      {p.version && <span className="text-slate-400 ml-2 text-[10px]">{p.version}</span>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowPositionDialog(false)}
-                className="flex-1 h-9 text-xs font-bold"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleApplyPosition}
-                disabled={!positionTargetId}
-                className="flex-1 h-9 text-xs font-black bg-slate-900"
-              >
-                Apply Position
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 }
