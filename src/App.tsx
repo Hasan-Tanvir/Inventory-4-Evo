@@ -23,6 +23,7 @@ import Invoices from "./pages/Invoices";
 import Targets from "./pages/Targets";
 import Rewards from "./pages/Rewards";
 import Quotes from "./pages/Quotes";
+import CentralStock from "./pages/CentralStock";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="/targets" element={<Targets />} />
               <Route path="/rewards" element={<Rewards />} />
               <Route path="/customization" element={<Customization />} />
+              <Route path="/central-stock" element={<CentralStock />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard, ShoppingCart, ClipboardList, Users, Package, BadgePercent, 
   CreditCard, Scale, Warehouse, Search, UserSquare2, BarChart3, Settings,
-  FileText, Bell, LogOut, Target, Gift, Menu, CalendarDays
+  FileText, Bell, LogOut, Target, Gift, Menu, CalendarDays, Table2
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -68,6 +68,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { label: 'Retail Sales', path: '/retail-sales', icon: BadgePercent, roles: ['admin'] },
     { label: 'Payments', path: '/payments', icon: CreditCard, roles: ['admin'] },
     { label: 'Stock Balance', path: '/stock-balance', icon: Warehouse, roles: ['admin'] },
+    { label: 'Central Stock', path: '/central-stock', icon: Table2, roles: ['admin'] },
     { label: 'Serial Search', path: '/serial-search', icon: Search, roles: ['admin', 'member'] },
     { label: 'Officers', path: '/officers', icon: UserSquare2, roles: ['admin'] },
     { label: 'Reports', path: '/reports', icon: BarChart3, roles: ['admin'] },
