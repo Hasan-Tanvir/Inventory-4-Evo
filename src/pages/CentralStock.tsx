@@ -77,11 +77,12 @@ interface RowShape {
 }
 
 const SortableProductRow = ({
-  row, idx, totalInCat, onMoveToTop, onMoveUp, onMoveDown, onSetPosition, lastInCategory,
+  row, idx, totalInCat, isEditing, onMoveToTop, onMoveUp, onMoveDown, onSetPosition, lastInCategory,
 }: {
   row: RowShape;
   idx: number;
   totalInCat: number;
+  isEditing: boolean;
   onMoveToTop: (productId: string) => void;
   onMoveUp: (productId: string) => void;
   onMoveDown: (productId: string) => void;
@@ -90,7 +91,7 @@ const SortableProductRow = ({
 }) => {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: row.id });
+  } = useSortable({ id: row.id, disabled: !isEditing });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -108,60 +109,72 @@ const SortableProductRow = ({
       )}
     >
       <TableCell className="py-1.5 px-1 w-7 border-r border-slate-100 sticky left-0 bg-inherit z-[5] p-0 text-center">
-        <div {...attributes} {...listeners} className="inline-flex items-center justify-center w-7 h-6 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none">
-          <GripVertical className="w-3 h-3" />
-        </div>
+        {isEditing ? (
+          <div {...attributes} {...listeners} className="inline-flex items-center justify-center w-7 h-6 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none">
+            <GripVertical className="w-3 h-3" />
+          </div>
+        ) : (
+          <div className="w-7 h-6 inline-flex items-center justify-center text-[9px] font-black text-slate-400 tabular-nums">{idx + 1}</div>
+        )}
       </TableCell>
       <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[28px] bg-inherit z-[5] p-0 text-center">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onMoveUp(row.id)}
-          disabled={idx === 0}
-          title="Move up one position"
-          className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-        >
-          <ChevronUp className="w-3.5 h-3.5" />
-        </Button>
+        {isEditing ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onMoveUp(row.id)}
+            disabled={idx === 0}
+            title="Move up one position"
+            className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </Button>
+        ) : null}
       </TableCell>
       <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[52px] bg-inherit z-[5] p-0 text-center">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onMoveDown(row.id)}
-          disabled={idx === totalInCat - 1}
-          title="Move down one position"
-          className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-        >
-          <ChevronDown className="w-3.5 h-3.5" />
-        </Button>
+        {isEditing ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onMoveDown(row.id)}
+            disabled={idx === totalInCat - 1}
+            title="Move down one position"
+            className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </Button>
+        ) : null}
       </TableCell>
       <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[76px] bg-inherit z-[5] p-0 text-center">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onMoveToTop(row.id)}
-          disabled={idx === 0}
-          title="Move to top of category"
-          className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-        >
-          <ArrowUpToLine className="w-3 h-3" />
-        </Button>
+        {isEditing ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onMoveToTop(row.id)}
+            disabled={idx === 0}
+            title="Move to top of category"
+            className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+          >
+            <ArrowUpToLine className="w-3 h-3" />
+          </Button>
+        ) : null}
       </TableCell>
       <TableCell className="py-1.5 px-1 w-9 border-r border-slate-100 sticky left-[100px] bg-inherit z-[5] p-0 text-center">
-        <input
-          type="number"
-          min={1}
-          max={totalInCat}
-          value={idx + 1}
-          onChange={e => {
-            const v = parseInt(e.target.value);
-            if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) onSetPosition(row.id, v - 1);
-          }}
-          onBlur={e => { if (e.target.value === '') e.target.value = String(idx + 1); }}
-          className="w-full h-6 text-center text-[9px] font-bold bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 tabular-nums"
-          title="Set exact position (1 to top)"
-        />
+        {isEditing ? (
+          <input
+            type="number"
+            min={1}
+            max={totalInCat}
+            value={idx + 1}
+            onChange={e => {
+              const v = parseInt(e.target.value);
+              if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) onSetPosition(row.id, v - 1);
+            }}
+            onBlur={e => { if (e.target.value === '') e.target.value = String(idx + 1); }}
+            className="w-full h-6 text-center text-[9px] font-bold bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 tabular-nums"
+            title="Set exact position (1 to top)"
+          />
+        ) : null}
       </TableCell>
       <TableCell className={cn(
         "py-1.5 px-2 border-r border-slate-100 sticky left-[136px] bg-inherit z-[5] w-[190px]",
@@ -214,6 +227,7 @@ export default function CentralStock() {
   const [search, setSearch] = useState<string>(initial.search);
   const [categoryFilter, setCategoryFilter] = useState<string>(initial.categoryFilter);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>(initial.statusFilter);
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
   const [dirtyOrder, setDirtyOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -436,7 +450,15 @@ export default function CentralStock() {
     });
     products.forEach(x => { if (!finalIds.includes(x.id)) finalIds.push(x.id); });
     const byId = new Map(products.map(x => [x.id, x]));
-    const reorderedProducts = finalIds.map(id => byId.get(id)).filter(Boolean) as Product[];
+    // Fix for jump up/down not working: immediately assign each product its new
+    // sortOrder (by position in finalIds) BEFORE calling setProducts. Without this,
+    // sortedProductIdsByCategory re-sorts by the stale `sortOrder` on the next
+    // render and visually undoes the reorder until the async API save completes.
+    const reorderedProducts = finalIds.map((id, i) => {
+      const p = byId.get(id);
+      if (!p) return null as unknown as Product;
+      return { ...p, sortOrder: i + 1 };
+    }).filter(Boolean) as Product[];
     setProducts(reorderedProducts);
     scheduleOrderPersist(reorderedProducts);
   };
@@ -611,7 +633,20 @@ export default function CentralStock() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {dirtyOrder && (
+              <Button
+                size="sm"
+                onClick={() => setIsEditingOrder(e => !e)}
+                className={cn(
+                  "h-8 text-[11px] font-black rounded-lg shadow-sm",
+                  isEditingOrder
+                    ? "bg-blue-600 hover:bg-blue-700 text-white ring-2 ring-blue-200"
+                    : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-300"
+                )}
+              >
+                <Settings2 className={cn("w-3.5 h-3.5 mr-1", isEditingOrder && "animate-pulse")} />
+                {isEditingOrder ? 'Editing…' : 'Edit Order'}
+              </Button>
+              {(dirtyOrder && isEditingOrder) && (
                 <Button
                   size="sm"
                   onClick={handleSaveOrderNow}
@@ -718,19 +753,33 @@ export default function CentralStock() {
                 <TableHeader>
                   <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200">
                     <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-7">
-                      <Settings2 className="w-3 h-3 mx-auto text-slate-500" />
+                      {isEditingOrder
+                        ? <Settings2 className="w-3 h-3 mx-auto text-slate-500" />
+                        : <span className="text-slate-600">#</span>}
                     </TableHead>
-                    <TableHead className="py-2 px-0.5 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[28px] bg-slate-100 z-[50] w-6">
+                    <TableHead className={cn(
+                      "py-2 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[28px] bg-slate-100 z-[50] w-6 transition-opacity",
+                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
+                    )}>
                       ↑
                     </TableHead>
-                    <TableHead className="py-2 px-0.5 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[52px] bg-slate-100 z-[50] w-6">
+                    <TableHead className={cn(
+                      "py-2 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[52px] bg-slate-100 z-[50] w-6 transition-opacity",
+                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
+                    )}>
                       ↓
                     </TableHead>
-                    <TableHead className="py-2 px-0.5 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[76px] bg-slate-100 z-[50] w-6">
+                    <TableHead className={cn(
+                      "py-2 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[76px] bg-slate-100 z-[50] w-6 transition-opacity",
+                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
+                    )}>
                       Top
                     </TableHead>
-                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-[100px] bg-slate-100 z-[50] w-9">
-                      #
+                    <TableHead className={cn(
+                      "py-2 px-1 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[100px] bg-slate-100 z-[50] w-9 transition-opacity",
+                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
+                    )}>
+                      {isEditingOrder ? 'Pos' : ''}
                     </TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[190px] border-r border-slate-200 sticky top-0 left-[136px] bg-slate-100 z-[50]">
                       Product
@@ -753,19 +802,31 @@ export default function CentralStock() {
                   </TableRow>
                   <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200">
                     <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-7">
-                      Drag
+                      {isEditingOrder ? 'Drag' : 'No.'}
                     </TableHead>
-                    <TableHead className="py-1.5 px-0.5 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[28px] bg-slate-50 z-[49] w-6">
+                    <TableHead className={cn(
+                      "py-1.5 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[28px] bg-slate-50 z-[49] w-6 transition-opacity",
+                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
+                    )}>
                       Up
                     </TableHead>
-                    <TableHead className="py-1.5 px-0.5 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[52px] bg-slate-50 z-[49] w-6">
+                    <TableHead className={cn(
+                      "py-1.5 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[52px] bg-slate-50 z-[49] w-6 transition-opacity",
+                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
+                    )}>
                       Down
                     </TableHead>
-                    <TableHead className="py-1.5 px-0.5 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[76px] bg-slate-50 z-[49] w-6">
+                    <TableHead className={cn(
+                      "py-1.5 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[76px] bg-slate-50 z-[49] w-6 transition-opacity",
+                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
+                    )}>
                       Jump
                     </TableHead>
-                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-[100px] bg-slate-50 z-[49] w-9">
-                      Pos
+                    <TableHead className={cn(
+                      "py-1.5 px-1 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[100px] bg-slate-50 z-[49] w-9 transition-opacity",
+                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
+                    )}>
+                      Set
                     </TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-[136px] bg-slate-50 z-[49]">
                       Name / Version
@@ -837,6 +898,7 @@ export default function CentralStock() {
                               row={r}
                               idx={idx}
                               totalInCat={g.items.length}
+                              isEditing={isEditingOrder}
                               onMoveToTop={handleMoveToTop}
                               onMoveUp={handleMoveUp}
                               onMoveDown={handleMoveDown}
