@@ -327,8 +327,8 @@ const Products = () => {
         return matchesSearch && matchesCategory && matchesStatus;
       })
       .sort((a, b) => {
-        const oA = typeof a.sortOrder === 'number' ? a.sortOrder : Number.MAX_SAFE_INTEGER;
-        const oB = typeof b.sortOrder === 'number' ? b.sortOrder : Number.MAX_SAFE_INTEGER;
+        const oA = typeof a.sortOrder === 'number' && !Number.isNaN(a.sortOrder) ? a.sortOrder : 0;
+        const oB = typeof b.sortOrder === 'number' && !Number.isNaN(b.sortOrder) ? b.sortOrder : 0;
         if (oA !== oB) return oA - oB;
         return (a.name || '').localeCompare(b.name || '', 'en', { numeric: true });
       });
@@ -346,10 +346,34 @@ const Products = () => {
       } as Product);
 
       if (isNewProduct) {
-        // Ensure new product is added at the top
+        // Ensure new product is added at the TOP OF ITS CATEGORY
         const currentProducts = await api.getProducts();
-        const updatedOrder = [savedProduct.id, ...currentProducts.map(p => p.id)];
-        await api.reorderProducts(updatedOrder);
+        const newCatId = savedProduct.categoryId || '';
+        const otherProducts = currentProducts.filter(p => p.id !== savedProduct.id);
+        // Build per-category order map, then flatten preserving category order
+        const catOrderMap = new Map<string, string[]>();
+        const categoriesFromLoad = await api.getCategories();
+        const safeCats = Array.isArray(categoriesFromLoad) ? categoriesFromLoad : [];
+        safeCats.forEach(c => catOrderMap.set(c.id, []));
+        catOrderMap.set('', []);
+        otherProducts.forEach(p => {
+          const cid = p.categoryId || '';
+          if (!catOrderMap.has(cid)) catOrderMap.set(cid, []);
+          catOrderMap.get(cid)!.push(p.id);
+        });
+        // Ensure new product is FIRST in its category
+        const existingInCat = catOrderMap.get(newCatId) || [];
+        catOrderMap.set(newCatId, [savedProduct.id, ...existingInCat]);
+        // Final ordered ids: iterate categories in original order, then the rest
+        const finalIds: string[] = [];
+        safeCats.forEach(c => (catOrderMap.get(c.id) || []).forEach(id => finalIds.push(id)));
+        catOrderMap.forEach((ids, cid) => {
+          if (safeCats.find(c => c.id === cid)) return;
+          ids.forEach(id => finalIds.push(id));
+        });
+        // Catch any remaining products missed due to category data mismatch
+        otherProducts.forEach(p => { if (!finalIds.includes(p.id)) finalIds.push(p.id); });
+        await api.reorderProducts(finalIds);
 
         const initialEntries: ProductStockEntry[] = [];
         if (initialDhaka > 0) {
