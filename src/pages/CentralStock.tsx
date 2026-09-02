@@ -162,17 +162,33 @@ const SortableProductRow = ({
       <TableCell className="py-1.5 px-1 w-9 border-r border-slate-100 sticky left-[100px] bg-inherit z-[5] p-0 text-center">
         {isEditing ? (
           <input
+            key={`${row.id}-pos-${idx + 1}`}
             type="number"
             min={1}
             max={totalInCat}
-            value={idx + 1}
+            defaultValue={idx + 1}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const el = e.currentTarget;
+                const v = parseInt(el.value);
+                if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) {
+                  onSetPosition(row.id, v - 1);
+                  el.blur();
+                } else {
+                  el.value = String(idx + 1);
+                  el.blur();
+                }
+              }
+            }}
             onChange={e => {
-              const v = parseInt(e.target.value);
-              if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) onSetPosition(row.id, v - 1);
+              const v = parseInt(e.currentTarget.value);
+              if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) {
+                onSetPosition(row.id, v - 1);
+              }
             }}
             onBlur={e => { if (e.target.value === '') e.target.value = String(idx + 1); }}
             className="w-full h-6 text-center text-[9px] font-bold bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 tabular-nums"
-            title="Set exact position (1 to top)"
+            title="Set exact position (1 = top). Press Enter to apply."
           />
         ) : null}
       </TableCell>
