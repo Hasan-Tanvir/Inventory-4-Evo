@@ -34,6 +34,7 @@ const Payments = () => {
   const [notes, setNotes] = useState('');
   const [paymentDate, setPaymentDate] = useState(getTodayISO());
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const currentUser = api.getCurrentUser();
   const isMember = currentUser?.role === 'member';
@@ -288,36 +289,49 @@ const Payments = () => {
   const cleanAmount = (value: string) => Number(value.replace(/,/g, ''));
 
   const handleSave = async () => {
-    if (!selectedDealer || !amount) return showError("Select dealer and enter amount");
+    if (isSaving) return;
+    if (!selectedDealer) return showError("Select a dealer");
 
-    const payment: Payment = {
-      id: editingPayment?.id || await api.getNextPaymentId(),
-      dealerId: selectedDealer.id,
-      dealerName: selectedDealer.name,
-      date: paymentDate,
-      type,
-      amount: cleanAmount(amount),
-      reference,
-      notes,
-      status: isMember ? 'pending' : 'approved',
-      createdBy: currentUser?.id || currentUser?.name,
-      approvedBy: isMember ? undefined : currentUser?.name
-    };
+    const paymentAmount = cleanAmount(amount);
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      return showError("Enter a valid amount greater than zero");
+    }
 
-    await api.savePayment(payment);
-    const p = await api.getPayments() || [];
-    setPayments([...p].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    setDealers(await api.getDealers() || []);
+    setIsSaving(true);
+    try {
+      const payment: Payment = {
+        id: editingPayment?.id || await api.getNextPaymentId(),
+        dealerId: selectedDealer.id,
+        dealerName: selectedDealer.name,
+        date: paymentDate,
+        type,
+        amount: paymentAmount,
+        reference,
+        notes,
+        status: isMember ? 'pending' : 'approved',
+        createdBy: currentUser?.id || currentUser?.name,
+        approvedBy: isMember ? undefined : currentUser?.name
+      };
 
-    // Reset form
-    setSelectedDealer(null);
-    setDealerSearch('');
-    setAmount('');
-    setReference(await api.getNextPaymentReference());
-    setNotes('');
-    setPaymentDate(getTodayISO());
-    setEditingPayment(null);
-    showSuccess(isMember ? "Payment submitted for admin approval" : "Payment recorded successfully");
+      await api.savePayment(payment);
+      const p = await api.getPayments() || [];
+      setPayments([...p].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setDealers(await api.getDealers() || []);
+
+      setSelectedDealer(null);
+      setDealerSearch('');
+      setAmount('');
+      setReference(await api.getNextPaymentReference());
+      setNotes('');
+      setPaymentDate(getTodayISO());
+      setEditingPayment(null);
+      showSuccess(isMember ? "Payment submitted for admin approval" : "Payment recorded successfully");
+    } catch (error: any) {
+      console.error('Payment save failed:', error);
+      showError(`Could not save payment: ${error?.message || 'Please try again'}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleApprovePayment = async (paymentId: string) => {
@@ -456,8 +470,8 @@ const Payments = () => {
                 <Input className="h-9 text-xs rounded-xl" value={notes} onChange={e => setNotes(e.target.value)} />
               </div>
               <div className="pt-2 space-y-2">
-                <Button className="w-full bg-slate-900 h-10 rounded-xl font-bold text-xs" onClick={handleSave}>
-                  {editingPayment ? 'Update' : 'Save'} Collection
+                <Button className="w-full bg-slate-900 h-10 rounded-xl font-bold text-xs" onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? 'Saving...' : `${editingPayment ? 'Update' : 'Save'} Collection`}
                 </Button>
                 {editingPayment && (
                   <Button variant="ghost" className="w-full h-9 rounded-xl text-xs" onClick={async () => {
