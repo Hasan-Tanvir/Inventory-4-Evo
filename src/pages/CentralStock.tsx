@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { getTodayISO } from '@/utils/date';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 import {
   DndContext,
@@ -29,7 +29,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ArrowUpToLine, Download, Settings2, Save, ChevronUp, ChevronDown } from 'lucide-react';
+import { GripVertical, Download, Settings2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const LS_KEY = 'central-stock-ui-v1';
@@ -74,19 +74,15 @@ interface RowShape {
   soldDhaka: number; soldCtg: number; soldTotal: number;
   curDhaka: number; curCtg: number; curTotal: number;
   lowestSlab: number; retail: number;
+  serialNumber?: number;
 }
 
 const SortableProductRow = ({
-  row, idx, totalInCat, isEditing, onMoveToTop, onMoveUp, onMoveDown, onSetPosition, lastInCategory,
+  row, idx, isEditing, lastInCategory,
 }: {
   row: RowShape;
   idx: number;
-  totalInCat: number;
   isEditing: boolean;
-  onMoveToTop: (productId: string) => void;
-  onMoveUp: (productId: string) => void;
-  onMoveDown: (productId: string) => void;
-  onSetPosition: (productId: string, pos: number) => void;
   lastInCategory: boolean;
 }) => {
   const {
@@ -114,86 +110,11 @@ const SortableProductRow = ({
             <GripVertical className="w-3 h-3" />
           </div>
         ) : (
-          <div className="w-7 h-6 inline-flex items-center justify-center text-[9px] font-black text-slate-400 tabular-nums">{idx + 1}</div>
+          <div className="w-7 h-6 inline-flex items-center justify-center text-[9px] font-black text-slate-400 tabular-nums">{row.serialNumber || idx + 1}</div>
         )}
       </TableCell>
-      <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[28px] bg-inherit z-[5] p-0 text-center">
-        {isEditing ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onMoveUp(row.id)}
-            disabled={idx === 0}
-            title="Move up one position"
-            className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-          >
-            <ChevronUp className="w-3.5 h-3.5" />
-          </Button>
-        ) : null}
-      </TableCell>
-      <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[52px] bg-inherit z-[5] p-0 text-center">
-        {isEditing ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onMoveDown(row.id)}
-            disabled={idx === totalInCat - 1}
-            title="Move down one position"
-            className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-          </Button>
-        ) : null}
-      </TableCell>
-      <TableCell className="py-1.5 px-0.5 w-6 border-r border-slate-100 sticky left-[76px] bg-inherit z-[5] p-0 text-center">
-        {isEditing ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onMoveToTop(row.id)}
-            disabled={idx === 0}
-            title="Move to top of category"
-            className="h-6 w-6 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-          >
-            <ArrowUpToLine className="w-3 h-3" />
-          </Button>
-        ) : null}
-      </TableCell>
-      <TableCell className="py-1.5 px-1 w-9 border-r border-slate-100 sticky left-[100px] bg-inherit z-[5] p-0 text-center">
-        {isEditing ? (
-          <input
-            key={`${row.id}-pos-${idx + 1}`}
-            type="number"
-            min={1}
-            max={totalInCat}
-            defaultValue={idx + 1}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                const el = e.currentTarget;
-                const v = parseInt(el.value);
-                if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) {
-                  onSetPosition(row.id, v - 1);
-                  el.blur();
-                } else {
-                  el.value = String(idx + 1);
-                  el.blur();
-                }
-              }
-            }}
-            onChange={e => {
-              const v = parseInt(e.currentTarget.value);
-              if (!Number.isNaN(v) && v >= 1 && v <= totalInCat) {
-                onSetPosition(row.id, v - 1);
-              }
-            }}
-            onBlur={e => { if (e.target.value === '') e.target.value = String(idx + 1); }}
-            className="w-full h-6 text-center text-[9px] font-bold bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 tabular-nums"
-            title="Set exact position (1 = top). Press Enter to apply."
-          />
-        ) : null}
-      </TableCell>
       <TableCell className={cn(
-        "py-1.5 px-2 border-r border-slate-100 sticky left-[136px] bg-inherit z-[5] w-[190px]",
+        "py-1.5 px-2 border-r border-slate-100 sticky left-[28px] bg-inherit z-[5] w-[220px]",
         row.status === 'inactive' && "line-through opacity-60"
       )}>
         <div className="font-bold text-slate-800 text-[11px] leading-tight truncate">{row.name}</div>
@@ -244,7 +165,6 @@ export default function CentralStock() {
   const [categoryFilter, setCategoryFilter] = useState<string>(initial.categoryFilter);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>(initial.statusFilter);
   const [isEditingOrder, setIsEditingOrder] = useState(false);
-  const [dirtyOrder, setDirtyOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -379,6 +299,15 @@ export default function CentralStock() {
     return map;
   }, [products, rows]);
 
+  const serialByProductId = useMemo(() => {
+    const serials = new Map<string, number>();
+    let serial = 1;
+    sortedProductIdsByCategory.forEach(ids => {
+      ids.forEach(id => serials.set(id, serial++));
+    });
+    return serials;
+  }, [sortedProductIdsByCategory]);
+
   const grouped = useMemo(() => {
     const q = search.trim().toLowerCase();
     const safeCats = Array.isArray(categories) ? categories : [];
@@ -396,16 +325,16 @@ export default function CentralStock() {
     };
 
     const ordered: { category: Category | { id: string; name: string }; items: RowShape[] }[] = [];
+    const remainingIdsByCategory = new Map(sortedProductIdsByCategory);
     safeCats.forEach(cat => {
-      const ids = sortedProductIdsByCategory.get(cat.id) || [];
+      const ids = remainingIdsByCategory.get(cat.id) || [];
       const items = filterRows(ids);
       if (items.length) {
         ordered.push({ category: cat, items });
-        // Remove so we don't double emit
-        ids.forEach(id => sortedProductIdsByCategory.delete(cat.id));
       }
+      remainingIdsByCategory.delete(cat.id);
     });
-    sortedProductIdsByCategory.forEach((ids, key) => {
+    remainingIdsByCategory.forEach((ids, key) => {
       const items = filterRows(ids);
       if (items.length) {
         ordered.push({
@@ -414,8 +343,11 @@ export default function CentralStock() {
         });
       }
     });
-    return ordered;
-  }, [rows, categories, search, categoryFilter, sortedProductIdsByCategory, rowById]);
+    return ordered.map(group => ({
+      ...group,
+      items: group.items.map(item => ({ ...item, serialNumber: serialByProductId.get(item.id) }))
+    }));
+  }, [rows, categories, search, categoryFilter, sortedProductIdsByCategory, serialByProductId, rowById]);
 
   const totals = useMemo(() => {
     const t = {
@@ -432,15 +364,16 @@ export default function CentralStock() {
   }, [grouped]);
 
   const scheduleOrderPersist = (newProducts: Product[]) => {
-    setDirtyOrder(true);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       try {
         setSavingOrder(true);
         const ids = newProducts.map(p => p.id);
         await api.reorderProducts(ids);
-        setDirtyOrder(false);
         showSuccess('Order saved');
+      } catch (error: any) {
+        console.error('Product order save failed:', error);
+        showError(`Could not save product order: ${error?.message || 'Please try again'}`);
       } finally {
         setSavingOrder(false);
       }
@@ -497,65 +430,9 @@ export default function CentralStock() {
     applyCategoryReorder(categoryId, reordered);
   };
 
-  const handleMoveToTop = (productId: string) => {
-    const p = products.find(x => x.id === productId);
-    if (!p) return;
-    const categoryId = p.categoryId || '';
-    const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
-    const oldIdx = idsInCat.indexOf(productId);
-    if (oldIdx <= 0) return;
-    const reordered = arrayMove(idsInCat, oldIdx, 0);
-    applyCategoryReorder(categoryId, reordered);
-  };
-
-  const handleMoveUp = (productId: string) => {
-    const p = products.find(x => x.id === productId);
-    if (!p) return;
-    const categoryId = p.categoryId || '';
-    const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
-    const oldIdx = idsInCat.indexOf(productId);
-    if (oldIdx <= 0) return;
-    const reordered = arrayMove(idsInCat, oldIdx, oldIdx - 1);
-    applyCategoryReorder(categoryId, reordered);
-  };
-
-  const handleMoveDown = (productId: string) => {
-    const p = products.find(x => x.id === productId);
-    if (!p) return;
-    const categoryId = p.categoryId || '';
-    const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
-    const oldIdx = idsInCat.indexOf(productId);
-    if (oldIdx < 0 || oldIdx >= idsInCat.length - 1) return;
-    const reordered = arrayMove(idsInCat, oldIdx, oldIdx + 1);
-    applyCategoryReorder(categoryId, reordered);
-  };
-
-  const handleSetPosition = (productId: string, newIdx: number) => {
-    const p = products.find(x => x.id === productId);
-    if (!p) return;
-    const categoryId = p.categoryId || '';
-    const idsInCat = sortedProductIdsByCategory.get(categoryId) || [];
-    const oldIdx = idsInCat.indexOf(productId);
-    if (oldIdx < 0 || newIdx < 0 || newIdx >= idsInCat.length || oldIdx === newIdx) return;
-    const reordered = arrayMove(idsInCat, oldIdx, newIdx);
-    applyCategoryReorder(categoryId, reordered);
-  };
-
   const safeCategories = Array.isArray(categories) ? categories : [];
   const productCount = grouped.reduce((a, g) => a + g.items.length, 0);
   const allFlatIds = useMemo(() => grouped.flatMap(g => g.items.map(r => r.id)), [grouped]);
-
-  const handleSaveOrderNow = async () => {
-    try {
-      setSavingOrder(true);
-      const ids = products.map(p => p.id);
-      await api.reorderProducts(ids);
-      setDirtyOrder(false);
-      showSuccess('Product order saved');
-    } finally {
-      setSavingOrder(false);
-    }
-  };
 
   const handleExportExcel = () => {
     const aoa: (string | number | undefined)[][] = [];
@@ -568,17 +445,13 @@ export default function CentralStock() {
     ]);
     aoa.push([]);
     aoa.push([
-      'Pos', '', '', '', '', 'Product',
-      '', 'Entry Qty', '', '',
-      '', 'Sold Qty', '', '',
-      '', 'Current Qty', '', '',
+      'Serial', 'Product', 'Entry Qty', '', '',
+      'Sold Qty', '', '', 'Current Qty', '', '',
       'Lowest Slab Price', 'Retail Price',
     ]);
     aoa.push([
-      '#', '↑', '↓', 'Top', 'Pos#', 'Name / Version / Status',
-      'DHK', 'CTG', 'Total', '',
-      'DHK', 'CTG', 'Total', '',
-      'DHK', 'CTG', 'Total',
+      'No.', 'Name / Version / Status', 'DHK', 'CTG', 'Total',
+      'DHK', 'CTG', 'Total', 'DHK', 'CTG', 'Total',
       'Price', 'Price',
     ]);
 
@@ -587,19 +460,16 @@ export default function CentralStock() {
         eT: a.eT + r.entriesTotal, sT: a.sT + r.soldTotal, cT: a.cT + r.curTotal,
       }), { eT: 0, sT: 0, cT: 0 });
       aoa.push([
-        '', '', '', '', '', `■ ${g.category.name} (${g.items.length} item${g.items.length === 1 ? '' : 's'})`,
-        '', '', gTot.eT,
-        '', '', '', gTot.sT,
-        '', '', '', gTot.cT,
-        '', '',
+        '', `■ ${g.category.name} (${g.items.length} item${g.items.length === 1 ? '' : 's'})`,
+        '', '', gTot.eT, '', '', gTot.sT, '', '', gTot.cT, '', '',
       ]);
       g.items.forEach((r, idx) => {
         const status = r.status === 'inactive' ? ' [INACTIVE]' : '';
         aoa.push([
-          String(idx + 1), '↑', '↓', '^', String(idx + 1),
+          r.serialNumber || idx + 1,
           `${r.name}${r.version ? ' - ' + r.version : ''}${status}`,
-          r.entriesDhaka, r.entriesCtg, r.entriesTotal, '',
-          r.soldDhaka, r.soldCtg, r.soldTotal, '',
+          r.entriesDhaka, r.entriesCtg, r.entriesTotal,
+          r.soldDhaka, r.soldCtg, r.soldTotal,
           r.curDhaka, r.curCtg, r.curTotal,
           r.lowestSlab, r.retail,
         ]);
@@ -608,27 +478,25 @@ export default function CentralStock() {
 
     aoa.push([]);
     aoa.push([
-      '', '', '', '', '', 'GRAND TOTAL',
-      totals.entriesDhaka, totals.entriesCtg, totals.entriesTotal,
-      '', totals.soldDhaka, totals.soldCtg, totals.soldTotal,
-      '', totals.curDhaka, totals.curCtg, totals.curTotal,
-      '', '',
+      '', 'GRAND TOTAL', totals.entriesDhaka, totals.entriesCtg, totals.entriesTotal,
+      totals.soldDhaka, totals.soldCtg, totals.soldTotal,
+      totals.curDhaka, totals.curCtg, totals.curTotal, '', '',
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
-      { wch: 5 }, { wch: 4 }, { wch: 4 }, { wch: 5 }, { wch: 5 }, { wch: 38 },
-      { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 3 },
-      { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 3 },
+      { wch: 8 }, { wch: 38 },
+      { wch: 9 }, { wch: 9 }, { wch: 10 },
+      { wch: 9 }, { wch: 9 }, { wch: 10 },
       { wch: 9 }, { wch: 9 }, { wch: 10 },
       { wch: 14 }, { wch: 12 },
     ];
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 18 } },
-      { s: { r: 3, c: 6 }, e: { r: 3, c: 8 } },
-      { s: { r: 3, c: 10 }, e: { r: 3, c: 12 } },
-      { s: { r: 3, c: 14 }, e: { r: 3, c: 16 } },
-      { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+      { s: { r: 3, c: 2 }, e: { r: 3, c: 4 } },
+      { s: { r: 3, c: 5 }, e: { r: 3, c: 7 } },
+      { s: { r: 3, c: 8 }, e: { r: 3, c: 10 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 1 } },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Central Stock');
@@ -662,17 +530,6 @@ export default function CentralStock() {
                 <Settings2 className={cn("w-3.5 h-3.5 mr-1", isEditingOrder && "animate-pulse")} />
                 {isEditingOrder ? 'Editing…' : 'Edit Order'}
               </Button>
-              {(dirtyOrder && isEditingOrder) && (
-                <Button
-                  size="sm"
-                  onClick={handleSaveOrderNow}
-                  disabled={savingOrder}
-                  className="h-8 text-[11px] font-black bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm"
-                >
-                  <Save className="w-3.5 h-3.5 mr-1" />
-                  {savingOrder ? 'Saving...' : 'Save Order'}
-                </Button>
-              )}
               <Button
                 size="sm"
                 onClick={handleExportExcel}
@@ -768,38 +625,8 @@ export default function CentralStock() {
               <Table className="text-xs border-collapse">
                 <TableHeader>
                   <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200">
-                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-7">
-                      {isEditingOrder
-                        ? <Settings2 className="w-3 h-3 mx-auto text-slate-500" />
-                        : <span className="text-slate-600">#</span>}
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-2 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[28px] bg-slate-100 z-[50] w-6 transition-opacity",
-                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
-                    )}>
-                      ↑
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-2 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[52px] bg-slate-100 z-[50] w-6 transition-opacity",
-                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
-                    )}>
-                      ↓
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-2 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[76px] bg-slate-100 z-[50] w-6 transition-opacity",
-                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
-                    )}>
-                      Top
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-2 px-1 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-0 left-[100px] bg-slate-100 z-[50] w-9 transition-opacity",
-                      isEditingOrder ? "text-slate-600" : "opacity-20 text-slate-400"
-                    )}>
-                      {isEditingOrder ? 'Pos' : ''}
-                    </TableHead>
-                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[190px] border-r border-slate-200 sticky top-0 left-[136px] bg-slate-100 z-[50]">
-                      Product
-                    </TableHead>
+                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-7">Serial</TableHead>
+                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[220px] border-r border-slate-200 sticky top-0 left-[28px] bg-slate-100 z-[50]">Product</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-600 text-center border-r border-slate-200 bg-slate-50 z-[30] sticky top-0" colSpan={3}>
                       Entry Qty
                     </TableHead>
@@ -817,44 +644,14 @@ export default function CentralStock() {
                     </TableHead>
                   </TableRow>
                   <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200">
-                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-7">
-                      {isEditingOrder ? 'Drag' : 'No.'}
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-1.5 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[28px] bg-slate-50 z-[49] w-6 transition-opacity",
-                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
-                    )}>
-                      Up
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-1.5 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[52px] bg-slate-50 z-[49] w-6 transition-opacity",
-                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
-                    )}>
-                      Down
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-1.5 px-0.5 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[76px] bg-slate-50 z-[49] w-6 transition-opacity",
-                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
-                    )}>
-                      Jump
-                    </TableHead>
-                    <TableHead className={cn(
-                      "py-1.5 px-1 text-[9px] font-black uppercase text-center border-r border-slate-200 sticky top-[36px] left-[100px] bg-slate-50 z-[49] w-9 transition-opacity",
-                      isEditingOrder ? "text-slate-500" : "opacity-0 text-slate-500"
-                    )}>
-                      Set
-                    </TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-[136px] bg-slate-50 z-[49]">
-                      Name / Version
-                    </TableHead>
+                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-7">No.</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-[28px] bg-slate-50 z-[49]">Name / Version</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">CTG</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-800 text-center border-r border-slate-200 bg-slate-100/70 sticky top-[36px] z-[29]">Total</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-right border-r border-slate-200 sticky top-[36px] z-[29] w-3"></TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">CTG</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-red-800 text-center border-r border-slate-200 bg-red-50/40 sticky top-[36px] z-[29]">Total</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-right border-r border-slate-200 sticky top-[36px] z-[29] w-3"></TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">CTG</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-emerald-900 text-center border-r border-slate-200 bg-emerald-50/50 sticky top-[36px] z-[29]">Total</TableHead>
@@ -866,7 +663,7 @@ export default function CentralStock() {
                   <TableBody>
                     {grouped.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={19} className="py-10 text-center text-xs text-slate-400 italic">
+                        <TableCell colSpan={13} className="py-10 text-center text-xs text-slate-400 italic">
                           No products match your filters
                         </TableCell>
                       </TableRow>
@@ -876,16 +673,11 @@ export default function CentralStock() {
                       const gTot = g.items.reduce((a, r) => ({
                         eT: a.eT + r.entriesTotal, sT: a.sT + r.soldTotal, cT: a.cT + r.curTotal,
                       }), { eT: 0, sT: 0, cT: 0 });
-                      const catTotal = g.items.length;
                       return (
                         <React.Fragment key={g.category.id}>
                           <TableRow className="bg-slate-900/90 hover:bg-slate-900/90 border-b border-slate-800">
                             <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-0 bg-slate-900/90 z-[10] w-7"></TableCell>
-                            <TableCell className="py-1.5 px-0.5 border-r border-slate-800/60 sticky left-[28px] bg-slate-900/90 z-[10] w-6"></TableCell>
-                            <TableCell className="py-1.5 px-0.5 border-r border-slate-800/60 sticky left-[52px] bg-slate-900/90 z-[10] w-6"></TableCell>
-                            <TableCell className="py-1.5 px-0.5 border-r border-slate-800/60 sticky left-[76px] bg-slate-900/90 z-[10] w-6"></TableCell>
-                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-[100px] bg-slate-900/90 z-[10] w-9 text-[9px] font-bold text-slate-400 text-center tabular-nums">{catTotal}</TableCell>
-                            <TableCell className="py-1.5 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky left-[136px] bg-slate-900/90 z-[10]">
+                            <TableCell className="py-1.5 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky left-[28px] bg-slate-900/90 z-[10]">
                               <span className="opacity-60 mr-1.5">{String.fromCharCode(9632)}</span>
                               {catName}
                               <span className="ml-2 font-normal text-slate-300 text-[9px] tracking-wide">
@@ -896,12 +688,10 @@ export default function CentralStock() {
                             <TableCell className="py-1.5 px-2 text-[10px] font-black text-white text-right bg-slate-800/60 border-r border-slate-800/60 tabular-nums">
                               {fmt(gTot.eT)}
                             </TableCell>
-                            <TableCell className="py-1.5 px-2 border-r border-slate-800/60 w-3"></TableCell>
                             <TableCell colSpan={2} className="py-1.5 px-2 text-[10px] text-slate-400 text-center border-r border-slate-800/60"></TableCell>
                             <TableCell className="py-1.5 px-2 text-[10px] font-black text-red-300 text-right bg-red-950/40 border-r border-slate-800/60 tabular-nums">
                               {fmt(gTot.sT)}
                             </TableCell>
-                            <TableCell className="py-1.5 px-2 border-r border-slate-800/60 w-3"></TableCell>
                             <TableCell colSpan={2} className="py-1.5 px-2 text-[10px] text-slate-400 text-center border-r border-slate-800/60"></TableCell>
                             <TableCell className="py-1.5 px-2 text-[10px] font-black text-emerald-300 text-right bg-emerald-950/40 border-r border-slate-800/60 tabular-nums">
                               {fmt(gTot.cT)}
@@ -913,12 +703,7 @@ export default function CentralStock() {
                               key={r.id}
                               row={r}
                               idx={idx}
-                              totalInCat={g.items.length}
                               isEditing={isEditingOrder}
-                              onMoveToTop={handleMoveToTop}
-                              onMoveUp={handleMoveUp}
-                              onMoveDown={handleMoveDown}
-                              onSetPosition={handleSetPosition}
                               lastInCategory={idx === g.items.length - 1}
                             />
                           ))}
@@ -928,21 +713,15 @@ export default function CentralStock() {
                     {grouped.length > 0 && (
                       <TableRow className="bg-slate-800 hover:bg-slate-800 sticky bottom-0 z-[15] border-t-2 border-slate-700">
                         <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-0 bg-slate-800 z-[16] w-7"></TableCell>
-                        <TableCell className="py-2 px-0.5 border-r border-slate-700 sticky bottom-0 left-[28px] bg-slate-800 z-[16] w-6"></TableCell>
-                        <TableCell className="py-2 px-0.5 border-r border-slate-700 sticky bottom-0 left-[52px] bg-slate-800 z-[16] w-6"></TableCell>
-                        <TableCell className="py-2 px-0.5 border-r border-slate-700 sticky bottom-0 left-[76px] bg-slate-800 z-[16] w-6"></TableCell>
-                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-[100px] bg-slate-800 z-[16] w-9"></TableCell>
-                        <TableCell className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky bottom-0 left-[136px] bg-slate-800 z-[16]">
+                        <TableCell className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky bottom-0 left-[28px] bg-slate-800 z-[16]">
                           Grand Total
                         </TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-blue-200 border-r border-slate-700">{fmt(totals.entriesDhaka)}</TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-orange-200 border-r border-slate-700">{fmt(totals.entriesCtg)}</TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[12px] font-black text-white border-r border-slate-700 bg-slate-700">{fmt(totals.entriesTotal)}</TableCell>
-                        <TableCell className="py-2 px-2 border-r border-slate-700 w-3"></TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-blue-200 border-r border-slate-700">{fmt(totals.soldDhaka)}</TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-orange-200 border-r border-slate-700">{fmt(totals.soldCtg)}</TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[12px] font-black text-red-200 border-r border-slate-700 bg-red-950/40">{fmt(totals.soldTotal)}</TableCell>
-                        <TableCell className="py-2 px-2 border-r border-slate-700 w-3"></TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-blue-200 border-r border-slate-700">{fmt(totals.curDhaka)}</TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-orange-200 border-r border-slate-700">{fmt(totals.curCtg)}</TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[12px] font-black text-emerald-200 border-r border-slate-700 bg-emerald-950/40">{fmt(totals.curTotal)}</TableCell>
