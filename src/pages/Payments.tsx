@@ -587,7 +587,7 @@ const Payments = () => {
                           <div className="text-xs font-bold text-slate-900">{p.dealerName}</div>
                         </TableCell>
                         <TableCell className="py-2 px-3 h-12">
-                          <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5">
                             <span className={cn(
                               "text-[9px] px-2 py-0.5 rounded-full font-black uppercase border w-fit",
                               p.type === 'Cash' ? "bg-green-50 text-green-600 border-green-100" :
