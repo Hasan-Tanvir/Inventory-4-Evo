@@ -150,7 +150,7 @@ export default function CentralStock() {
   const initial: PersistedState = useMemo(() => {
     try {
       const raw = typeof window !== 'undefined' ? window.localStorage.getItem(LS_KEY) : null;
-      if (raw) return { startDate: defaultStart, endDate: defaultEnd, search: '', categoryFilter: 'all', statusFilter: 'active', ...JSON.parse(raw) };
+      if (raw) return { startDate: defaultStart, endDate: defaultEnd, search: '', categoryFilter: 'all', statusFilter: 'active', ...JSON.parse(raw), endDate: defaultEnd };
     } catch { /* ignore */ }
     return { startDate: defaultStart, endDate: defaultEnd, search: '', categoryFilter: 'all', statusFilter: 'active' as const };
   }, [defaultStart, defaultEnd]);
