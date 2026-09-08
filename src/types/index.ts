@@ -170,7 +170,7 @@ export interface Payment {
   dealerId: string;
   dealerName: string;
   date: string;
-  type: 'Cash' | 'Bank Transfer' | 'Cheque' | 'Purchase' | 'Adjustment' | 'Last balance Due';
+  type: 'Cash' | 'Bank Transfer' | 'Cheque' | 'Purchase' | 'Approval' | 'Adjustment' | 'Last balance Due';
   amount: number;
   reference?: string;
   notes?: string;

@@ -66,7 +66,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { label: 'Rewards', path: '/rewards', icon: Gift, roles: ['admin'] },
     { label: 'Products', path: '/products', icon: Package, roles: ['admin'] },
     { label: 'Retail Sales', path: '/retail-sales', icon: BadgePercent, roles: ['admin'] },
-    { label: 'Payments', path: '/payments', icon: CreditCard, roles: ['admin'] },
+    { label: 'Payments', path: '/payments', icon: CreditCard, roles: ['admin', 'member'] },
     { label: 'Stock Balance', path: '/stock-balance', icon: Warehouse, roles: ['admin'] },
     { label: 'Central Stock', path: '/central-stock', icon: Table2, roles: ['admin'] },
     { label: 'Serial Search', path: '/serial-search', icon: Search, roles: ['admin', 'member'] },

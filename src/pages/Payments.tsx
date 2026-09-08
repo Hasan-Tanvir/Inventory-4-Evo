@@ -418,6 +418,7 @@ const Payments = () => {
                     <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
                     <SelectItem value="Cheque">Cheque</SelectItem>
                     <SelectItem value="Purchase">Purchase</SelectItem>
+                    {currentUser?.role === 'admin' && <SelectItem value="Approval">Approval</SelectItem>}
                     <SelectItem value="Adjustment">Adjustment</SelectItem>
                     {currentUser?.role === 'admin' && <SelectItem value="Last balance Due">Last balance Due</SelectItem>}
                   </SelectContent>

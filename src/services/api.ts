@@ -1066,7 +1066,7 @@ export const api = {
         // If type is Last balance Due, it INCREASES the due.
         
         let multiplier = -1; // Default: payments decrease due
-        if (payment.type === 'Last balance Due' || payment.type === 'Purchase') {
+        if (payment.type === 'Last balance Due' || payment.type === 'Purchase' || payment.type === 'Approval') {
           multiplier = 1; // These increase due
         }
 
@@ -1087,9 +1087,11 @@ export const api = {
       const dealers = await api.getDealers();
       const dealer = dealers.find(d => d.id === payment.dealerId);
       if (dealer) {
+        const shouldIncreaseDue = payment.type === 'Last balance Due' || payment.type === 'Purchase' || payment.type === 'Approval';
+        const reversal = shouldIncreaseDue ? -(Number(payment.amount) || 0) : (Number(payment.amount) || 0);
         await api.saveDealer({
           ...dealer,
-          balance: (Number(dealer.balance) || 0) - (Number(payment.amount) || 0)
+          balance: (Number(dealer.balance) || 0) + reversal
         });
       }
     }
