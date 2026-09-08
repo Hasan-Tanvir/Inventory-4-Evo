@@ -39,6 +39,7 @@ const CustomizationPage = () => {
     { path: '/retail-sales', label: 'Retail Sales' },
     { path: '/payments', label: 'Payments' },
     { path: '/stock-balance', label: 'Stock Balance' },
+    { path: '/central-stock', label: 'Central Stock' },
     { path: '/serial-search', label: 'Serial Search' },
     { path: '/officers', label: 'Officers' },
     { path: '/reports', label: 'Reports' },

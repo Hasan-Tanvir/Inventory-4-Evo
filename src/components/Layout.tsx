@@ -37,7 +37,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       setConfig(await api.getConfig());
       const ns = await api.getNotifications(currentUser.id);
       setNotifications(Array.isArray(ns) ? ns : []);
-      const memberTabs = currentUser.role === 'member' ? (currentUser.allowedTabs || []) : [];
+      const memberTabs = currentUser.role === 'member'
+        ? Array.from(new Set([...(currentUser.allowedTabs || []), '/central-stock']))
+        : [];
       if (memberTabs.length > 0 && !memberTabs.includes(location.pathname)) {
         navigate(memberTabs[0]);
       }
@@ -68,7 +70,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { label: 'Retail Sales', path: '/retail-sales', icon: BadgePercent, roles: ['admin'] },
     { label: 'Payments', path: '/payments', icon: CreditCard, roles: ['admin', 'member'] },
     { label: 'Stock Balance', path: '/stock-balance', icon: Warehouse, roles: ['admin'] },
-    { label: 'Central Stock', path: '/central-stock', icon: Table2, roles: ['admin'] },
+    { label: 'Central Stock', path: '/central-stock', icon: Table2, roles: ['admin', 'member'] },
     { label: 'Serial Search', path: '/serial-search', icon: Search, roles: ['admin', 'member'] },
     { label: 'Officers', path: '/officers', icon: UserSquare2, roles: ['admin'] },
     { label: 'Reports', path: '/reports', icon: BarChart3, roles: ['admin'] },
@@ -79,7 +81,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     if (!item.roles.includes(user.role)) return false;
     if (user.role !== 'member') return true;
     if (!user.allowedTabs || user.allowedTabs.length === 0) return true;
-    return user.allowedTabs.includes(item.path);
+    return item.path === '/central-stock' || user.allowedTabs.includes(item.path);
   });
 
   const defaultMobileQuickPaths = ['/', '/new-order', '/orders', '/invoices', '/balance'];

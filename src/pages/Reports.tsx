@@ -106,19 +106,6 @@ const Reports = () => {
     orders.filter(o => !o.isQuote && o.date >= fromDate && o.date <= toDate), 
   [orders, fromDate, toDate]);
 
-  const productSerialMap = useMemo(() => {
-    const categoryOrder = new Map(categories.map((category, index) => [category.id, index]));
-    const orderedProducts = [...products].sort((a, b) => {
-      const categoryOrderDifference = (categoryOrder.get(a.categoryId) ?? Number.MAX_SAFE_INTEGER)
-        - (categoryOrder.get(b.categoryId) ?? Number.MAX_SAFE_INTEGER);
-      if (categoryOrderDifference !== 0) return categoryOrderDifference;
-      const sortOrderDifference = (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
-      if (sortOrderDifference !== 0) return sortOrderDifference;
-      return `${a.name}${a.version}`.localeCompare(`${b.name}${b.version}`);
-    });
-    return new Map(orderedProducts.map((product, index) => [product.id, index + 1]));
-  }, [products, categories]);
-
   const entityName = useMemo(() => {
     if (selectedEntity === 'all') return 'all';
     if (salesReportType === 'dealer') {
@@ -130,7 +117,7 @@ const Reports = () => {
   const isProductSalesReport = salesReportType === 'dealer' || officerSubtype === 'product';
 
   const salesReportData = useMemo(() => {
-    const summary: Record<string, { qty: number; amount: number; commission: number; categoryId?: string; productId?: string; serial?: number }> = {};
+    const summary: Record<string, { qty: number; amount: number; commission: number; categoryId?: string }> = {};
     let totalQty = 0;
     let totalAmount = 0;
     let totalCommission = 0;
@@ -149,20 +136,12 @@ const Reports = () => {
         const product = products.find(p => p.id === item.productId);
         if (selectedCategory !== 'all' && product?.categoryId !== selectedCategory) return;
 
-        const productReport = salesReportType === 'dealer' || officerSubtype === 'product';
         const key = (salesReportType === 'officer' && officerSubtype === 'dealer')
           ? `${o.customerName || 'Unknown'}${selectedEntity === 'all' ? ` [${o.officer || 'Unassigned'}]` : ''}`
-          : item.productId || item.productName;
+          : item.productName;
         
         if (!summary[key]) {
-          summary[key] = {
-            qty: 0,
-            amount: 0,
-            commission: 0,
-            categoryId: product?.categoryId,
-            productId: product?.id,
-            serial: productReport && product?.id ? productSerialMap.get(product.id) : undefined
-          };
+          summary[key] = { qty: 0, amount: 0, commission: 0, categoryId: product?.categoryId };
         }
         const itemComm = (item.commission || 0) + (
           o.includePriceIncreaseInCommission
@@ -182,15 +161,7 @@ const Reports = () => {
       }
     });
 
-    const rows = Object.entries(summary)
-      .map(([key, data]) => ({
-        name: data.productId ? products.find(p => p.id === data.productId)?.name || key : key,
-        ...data
-      }))
-      .sort((a, b) => {
-        if (a.serial !== undefined && b.serial !== undefined) return a.serial - b.serial;
-        return a.name.localeCompare(b.name);
-      });
+    const rows = Object.entries(summary).map(([name, data]) => ({ name, ...data }));
 
     if (categoryView === 'splitted') {
       const grouped: Record<string, { rows: typeof rows, subQty: number, subAmount: number, subCommission: number }> = {};
@@ -209,7 +180,7 @@ const Reports = () => {
     }
 
     return { rows, totalQty, totalAmount, totalCommission, isSplitted: false };
-  }, [filteredOrders, salesReportType, officerSubtype, selectedEntity, selectedCategory, products, categoryView, categories, productSerialMap]);
+  }, [filteredOrders, salesReportType, officerSubtype, selectedEntity, selectedCategory, products, categoryView, categories]);
 
   const dealerRankings = useMemo(() => {
     const summary: Record<string, { name: string; amount: number; qty: number; orders: number }> = {};
@@ -534,7 +505,7 @@ const Reports = () => {
                           <TableBody>
                             {group.rows.map((r, i) => (
                               <TableRow key={i} className="hover:bg-slate-50/30 transition-colors">
-                                {isProductSalesReport && <TableCell className="text-center font-black text-slate-500 text-xs">{r.serial}</TableCell>}
+                                {isProductSalesReport && <TableCell className="text-center font-black text-slate-500 text-xs">{i + 1}</TableCell>}
                                 <TableCell className="py-3 font-normal text-slate-900 text-xs w-[40%] pl-6">
                                   {r.name}
                                 </TableCell>
@@ -575,7 +546,7 @@ const Reports = () => {
                       <TableBody>
                         {salesReportData.rows!.map((r, i) => (
                           <TableRow key={i} className="hover:bg-slate-50/30 transition-colors">
-                            {isProductSalesReport && <TableCell className="text-center font-black text-slate-500 text-xs">{r.serial}</TableCell>}
+                            {isProductSalesReport && <TableCell className="text-center font-black text-slate-500 text-xs">{i + 1}</TableCell>}
                             <TableCell className="py-3 font-normal text-slate-900 text-xs pl-6">
                               {r.name}
                             </TableCell>

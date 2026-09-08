@@ -29,7 +29,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Download, Settings2 } from 'lucide-react';
+import { GripVertical, Download, Printer, Settings2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const LS_KEY = 'central-stock-ui-v1';
@@ -118,7 +118,7 @@ const SortableProductRow = ({
         "py-1.5 px-2 border-r border-slate-100 sticky left-10 bg-inherit z-[5] w-[160px] min-w-[160px] md:w-[220px] md:min-w-[220px]",
         row.status === 'inactive' && "line-through opacity-60"
       )}>
-        <div className="font-bold text-slate-800 text-[11px] leading-tight truncate">{row.name}</div>
+        <div className="font-bold text-slate-800 text-xs leading-tight truncate">{row.name}</div>
         <div className="flex items-center gap-1 mt-0.5">
           {row.version && (
             <div className="text-[9px] font-black uppercase tracking-tight text-slate-400 leading-tight">{row.version}</div>
@@ -128,17 +128,17 @@ const SortableProductRow = ({
           )}
         </div>
       </TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] text-blue-700 border-r border-slate-100 font-medium">{fmt(row.entriesDhaka)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] text-orange-700 border-r border-slate-100 font-medium">{fmt(row.entriesCtg)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] font-black text-slate-900 border-r border-slate-200 bg-slate-50/60">{fmt(row.entriesTotal)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] text-blue-700 border-r border-slate-100 font-medium">{fmt(row.soldDhaka)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] text-orange-700 border-r border-slate-100 font-medium">{fmt(row.soldCtg)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] font-black text-red-700 border-r border-slate-200 bg-red-50/40">{fmt(row.soldTotal)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] text-blue-700 border-r border-slate-100 font-medium">{fmt(row.curDhaka)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] text-orange-700 border-r border-slate-100 font-medium">{fmt(row.curCtg)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] font-black text-emerald-800 border-r border-slate-200 bg-emerald-50/40">{fmt(row.curTotal)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] font-bold text-indigo-700 border-r border-slate-100">{fmt(row.lowestSlab)}</TableCell>
-      <TableCell className="py-1.5 px-2 text-right tabular-nums text-[11px] font-bold text-slate-900">{fmt(row.retail)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs text-blue-700 border-r border-slate-100 font-medium">{fmt(row.entriesDhaka)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs text-orange-700 border-r border-slate-100 font-medium">{fmt(row.entriesCtg)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs font-black text-slate-900 border-r border-slate-200 bg-slate-50/60">{fmt(row.entriesTotal)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs text-blue-700 border-r border-slate-100 font-medium">{fmt(row.soldDhaka)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs text-orange-700 border-r border-slate-100 font-medium">{fmt(row.soldCtg)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs font-black text-red-700 border-r border-slate-200 bg-red-50/40">{fmt(row.soldTotal)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs text-blue-700 border-r border-slate-100 font-medium">{fmt(row.curDhaka)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs text-orange-700 border-r border-slate-100 font-medium">{fmt(row.curCtg)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs font-black text-emerald-800 border-r border-slate-200 bg-emerald-50/40">{fmt(row.curTotal)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs font-bold text-indigo-700 border-r border-slate-100">{fmt(row.lowestSlab)}</TableCell>
+      <TableCell className="py-1.5 px-2 text-right tabular-nums text-xs font-bold text-slate-900">{fmt(row.retail)}</TableCell>
     </TableRow>
   );
 };
@@ -168,6 +168,8 @@ export default function CentralStock() {
   const [isEditingOrder, setIsEditingOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentUser = api.getCurrentUser();
+  const canEditOrder = currentUser?.role === 'admin';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -505,12 +507,16 @@ export default function CentralStock() {
     showSuccess('Excel file downloaded');
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <Layout>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div className="space-y-3">
+        <div className="space-y-3 print:space-y-0">
           {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 print:hidden">
             <div>
               <h1 className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tighter">Central Stock</h1>
               <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">
@@ -521,6 +527,7 @@ export default function CentralStock() {
               <Button
                 size="sm"
                 onClick={() => setIsEditingOrder(e => !e)}
+                disabled={!canEditOrder}
                 className={cn(
                   "h-8 text-[11px] font-black rounded-lg shadow-sm",
                   isEditingOrder
@@ -539,11 +546,19 @@ export default function CentralStock() {
                 <Download className="w-3.5 h-3.5 mr-1" />
                 Excel (.xlsx)
               </Button>
+              <Button
+                size="sm"
+                onClick={handlePrint}
+                className="h-8 text-[11px] font-black bg-slate-700 hover:bg-slate-800 text-white rounded-lg shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1" />
+                Print
+              </Button>
             </div>
           </div>
 
           {/* Filters */}
-          <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 shadow-sm print:hidden">
             <div className="grid grid-cols-2 md:grid-cols-12 gap-3 md:gap-4 items-end">
               <div className="col-span-2 md:col-span-2">
                 <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">From Date</Label>
@@ -622,10 +637,10 @@ export default function CentralStock() {
 
           {/* Table */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="relative overflow-auto max-h-[calc(100vh-270px)] tabular-nums overscroll-x-contain">
+            <div className="relative overflow-auto max-h-[calc(100vh-270px)] tabular-nums overscroll-x-contain print:max-h-none print:overflow-visible">
               <Table className="min-w-[980px] text-xs border-collapse">
                 <TableHeader>
-                  <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200">
+                  <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200 sticky top-0 z-[45]">
                     <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-10 min-w-10">Serial</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[160px] min-w-[160px] md:w-[220px] md:min-w-[220px] border-r border-slate-200 sticky top-0 left-10 bg-slate-100 z-[50]">Product</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-600 text-center border-r border-slate-200 bg-slate-50 z-[30] sticky top-0" colSpan={3}>
@@ -644,7 +659,7 @@ export default function CentralStock() {
                       Retail Price
                     </TableHead>
                   </TableRow>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200">
+                  <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200 sticky top-[36px] z-[44]">
                     <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-10 min-w-10">No.</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-10 bg-slate-50 z-[49]">Name / Version</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
