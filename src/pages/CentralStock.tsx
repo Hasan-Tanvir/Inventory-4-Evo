@@ -168,6 +168,7 @@ export default function CentralStock() {
   const [isEditingOrder, setIsEditingOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tablePrintRef = useRef<HTMLDivElement | null>(null);
   const currentUser = api.getCurrentUser();
   const canEditOrder = currentUser?.role === 'admin';
 
@@ -508,7 +509,33 @@ export default function CentralStock() {
   };
 
   const handlePrint = () => {
-    window.print();
+    const table = tablePrintRef.current?.querySelector('table');
+    if (!table) {
+      showError('Stock table is not ready to print');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!printWindow) {
+      showError('Pop-up blocked, enable pop-ups to print');
+      return;
+    }
+
+    printWindow.document.write(`<!doctype html><html><head><title>Central Stock</title><style>
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 16px; color: #111827; font-family: Arial, sans-serif; }
+      h1 { margin: 0 0 12px; font-size: 18px; }
+      table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 10px; }
+      th, td { border: 1px solid #cbd5e1; padding: 5px 6px; }
+      th { background: #f1f5f9; font-weight: 700; }
+      @page { size: landscape; margin: 10mm; }
+    </style></head><body><h1>Central Stock</h1>${table.outerHTML}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   return (
@@ -636,10 +663,10 @@ export default function CentralStock() {
           </div>
 
           {/* Table */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div ref={tablePrintRef} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="relative overflow-auto max-h-[calc(100vh-270px)] tabular-nums overscroll-x-contain print:max-h-none print:overflow-visible">
-              <Table className="min-w-[980px] text-xs border-collapse">
-                <TableHeader>
+              <Table className="min-w-[980px] text-xs border-separate border-spacing-0">
+                <TableHeader className="sticky top-0 z-[40]">
                   <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200 sticky top-0 z-[45]">
                     <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-10 min-w-10">Serial</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[160px] min-w-[160px] md:w-[220px] md:min-w-[220px] border-r border-slate-200 sticky top-0 left-10 bg-slate-100 z-[50]">Product</TableHead>
