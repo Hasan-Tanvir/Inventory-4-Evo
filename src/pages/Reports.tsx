@@ -116,8 +116,24 @@ const Reports = () => {
 
   const isProductSalesReport = salesReportType === 'dealer' || officerSubtype === 'product';
 
+  const productOrder = useMemo(() => {
+    const categoryOrder = new Map(categories.map((category, index) => [category.id, index]));
+    return new Map(
+      [...products]
+        .sort((a, b) => {
+          const categoryDifference = (categoryOrder.get(a.categoryId) ?? Number.MAX_SAFE_INTEGER)
+            - (categoryOrder.get(b.categoryId) ?? Number.MAX_SAFE_INTEGER);
+          if (categoryDifference !== 0) return categoryDifference;
+          const orderDifference = (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
+          if (orderDifference !== 0) return orderDifference;
+          return `${a.name}${a.version}`.localeCompare(`${b.name}${b.version}`);
+        })
+        .map((product, index) => [product.id, index] as const)
+    );
+  }, [products, categories]);
+
   const salesReportData = useMemo(() => {
-    const summary: Record<string, { qty: number; amount: number; commission: number; categoryId?: string }> = {};
+    const summary: Record<string, { qty: number; amount: number; commission: number; categoryId?: string; productId?: string }> = {};
     let totalQty = 0;
     let totalAmount = 0;
     let totalCommission = 0;
@@ -136,12 +152,19 @@ const Reports = () => {
         const product = products.find(p => p.id === item.productId);
         if (selectedCategory !== 'all' && product?.categoryId !== selectedCategory) return;
 
+        const productReport = salesReportType === 'dealer' || officerSubtype === 'product';
         const key = (salesReportType === 'officer' && officerSubtype === 'dealer')
           ? `${o.customerName || 'Unknown'}${selectedEntity === 'all' ? ` [${o.officer || 'Unassigned'}]` : ''}`
-          : item.productName;
+          : item.productId || item.productName;
         
         if (!summary[key]) {
-          summary[key] = { qty: 0, amount: 0, commission: 0, categoryId: product?.categoryId };
+          summary[key] = {
+            qty: 0,
+            amount: 0,
+            commission: 0,
+            categoryId: product?.categoryId,
+            productId: productReport ? product?.id : undefined
+          };
         }
         const itemComm = (item.commission || 0) + (
           o.includePriceIncreaseInCommission
@@ -161,7 +184,18 @@ const Reports = () => {
       }
     });
 
-    const rows = Object.entries(summary).map(([name, data]) => ({ name, ...data }));
+    const rows = Object.entries(summary)
+      .map(([key, data]) => ({
+        name: data.productId ? products.find(product => product.id === data.productId)?.name || key : key,
+        ...data
+      }))
+      .sort((a, b) => {
+        if (a.productId && b.productId) {
+          return (productOrder.get(a.productId) ?? Number.MAX_SAFE_INTEGER)
+            - (productOrder.get(b.productId) ?? Number.MAX_SAFE_INTEGER);
+        }
+        return a.name.localeCompare(b.name);
+      });
 
     if (categoryView === 'splitted') {
       const grouped: Record<string, { rows: typeof rows, subQty: number, subAmount: number, subCommission: number }> = {};
@@ -180,7 +214,7 @@ const Reports = () => {
     }
 
     return { rows, totalQty, totalAmount, totalCommission, isSplitted: false };
-  }, [filteredOrders, salesReportType, officerSubtype, selectedEntity, selectedCategory, products, categoryView, categories]);
+  }, [filteredOrders, salesReportType, officerSubtype, selectedEntity, selectedCategory, products, categoryView, categories, productOrder]);
 
   const dealerRankings = useMemo(() => {
     const summary: Record<string, { name: string; amount: number; qty: number; orders: number }> = {};

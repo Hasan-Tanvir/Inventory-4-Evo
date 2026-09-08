@@ -666,7 +666,7 @@ export default function CentralStock() {
           <div ref={tablePrintRef} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="relative overflow-auto max-h-[calc(100vh-270px)] tabular-nums overscroll-x-contain print:max-h-none print:overflow-visible">
               <Table className="min-w-[980px] text-xs border-separate border-spacing-0">
-                <TableHeader className="sticky top-0 z-[40]">
+                <TableHeader className="sticky top-0 z-[40] bg-white" style={{ position: 'sticky', top: 0, zIndex: 40 }}>
                   <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200 sticky top-0 z-[45]">
                     <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-10 min-w-10">Serial</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[160px] min-w-[160px] md:w-[220px] md:min-w-[220px] border-r border-slate-200 sticky top-0 left-10 bg-slate-100 z-[50]">Product</TableHead>
