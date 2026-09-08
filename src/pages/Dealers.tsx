@@ -373,7 +373,7 @@ const Dealers = () => {
         .filter(o => o && o.status === 'approved' && !o.isQuote && o.dealerId === d.id)
         .reduce((sum, o) => sum + Number(o.netTotal || 0), 0);
       const paid = safePayments
-        .filter(p => p && p.dealerId === d.id)
+        .filter(p => p && p.dealerId === d.id && p.status !== 'pending')
         .reduce((sum, p) => {
           const amt = Number(p.amount || 0);
           // If type is "Last balance Due", it's a debit (like a billed amount)

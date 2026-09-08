@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { showSuccess, showError } from '@/utils/toast';
 import { getTodayISO } from '@/utils/date';
 import { numberToWords } from '@/lib/utils';
-import { CreditCard, Plus, Trash2, Edit, Printer, Download, Calendar, Search } from 'lucide-react';
+import { CheckCircle2, Clock3, CreditCard, Plus, Trash2, Edit, Printer, Download, Calendar, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Payments = () => {
@@ -79,7 +79,7 @@ const Payments = () => {
         .filter(o => o && o.status === 'approved' && o.dealerId === d.id)
         .reduce((sum, o) => sum + Number(o.netTotal || 0), 0);
       const paid = safePayments
-        .filter(p => p && p.dealerId === d.id)
+        .filter(p => p && p.dealerId === d.id && p.status !== 'pending')
         .reduce((sum, p) => {
           const amt = Number(p.amount || 0);
           if (p.type === 'Last balance Due') return sum - amt;
@@ -597,11 +597,19 @@ const Payments = () => {
                               {p.type}
                             </span>
                             {p.status && (
-                              <span className={cn(
-                                "text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase w-fit",
-                                p.status === 'pending' ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              )}>
-                                {p.status}
+                              <span
+                                className={cn(
+                                  "inline-flex items-center justify-center w-4 h-4 rounded-full border",
+                                  p.status === 'pending'
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                )}
+                                title={p.status === 'pending' ? 'Pending admin approval' : 'Approved'}
+                                aria-label={p.status === 'pending' ? 'Pending admin approval' : 'Approved'}
+                              >
+                                {p.status === 'pending'
+                                  ? <Clock3 className="w-2.5 h-2.5" />
+                                  : <CheckCircle2 className="w-2.5 h-2.5" />}
                               </span>
                             )}
                           </div>

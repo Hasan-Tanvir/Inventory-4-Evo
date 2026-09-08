@@ -118,7 +118,7 @@ const Balance = () => {
       notes: (o.status === 'pending' ? '[PLACED] ' : '') + (o.notes ? `Sales Order: ${o.notes}` : 'Sales Order')
     }));
 
-    const dealerPayments = payments.filter(p => p.dealerId === selectedDealerId).map(p => ({
+    const dealerPayments = payments.filter(p => p.dealerId === selectedDealerId && p.status !== 'pending').map(p => ({
       date: p.date,
       ref: p.reference || 'PAY',
       type: 'Payment',
