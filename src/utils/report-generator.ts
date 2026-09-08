@@ -64,7 +64,7 @@ export function generateReportHtml(
           <tbody>
             ${group.rows.map((r, i) => `
               <tr>
-                <td style="border:1px solid #000; padding:6px; text-align:center;">${i + 1}</td>
+                <td style="border:1px solid #000; padding:6px; text-align:center;">${r.serial ?? i + 1}</td>
                 <td style="border:1px solid #000; padding:6px; font-weight: normal;">${r.name}</td>
                 <td style="border:1px solid #000; padding:6px; text-align:center;">${r.qty}</td>
                 <td style="border:1px solid #000; padding:6px; text-align:right;">${formatNumber(r.amount)}</td>
@@ -96,7 +96,7 @@ export function generateReportHtml(
         <tbody>
           ${data.rows.map((r, i) => `
             <tr>
-              <td style="border:1px solid #000; padding:8px; text-align:center;">${i + 1}</td>
+              <td style="border:1px solid #000; padding:8px; text-align:center;">${r.serial ?? i + 1}</td>
               <td style="border:1px solid #000; padding:8px; font-weight: normal;">${r.name}</td>
               <td style="border:1px solid #000; padding:8px; text-align:center;">${r.qty}</td>
               <td style="border:1px solid #000; padding:8px; text-align:right;">${formatNumber(r.amount)}</td>

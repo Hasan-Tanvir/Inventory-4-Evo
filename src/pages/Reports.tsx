@@ -106,6 +106,19 @@ const Reports = () => {
     orders.filter(o => !o.isQuote && o.date >= fromDate && o.date <= toDate), 
   [orders, fromDate, toDate]);
 
+  const productSerialMap = useMemo(() => {
+    const categoryOrder = new Map(categories.map((category, index) => [category.id, index]));
+    const orderedProducts = [...products].sort((a, b) => {
+      const categoryOrderDifference = (categoryOrder.get(a.categoryId) ?? Number.MAX_SAFE_INTEGER)
+        - (categoryOrder.get(b.categoryId) ?? Number.MAX_SAFE_INTEGER);
+      if (categoryOrderDifference !== 0) return categoryOrderDifference;
+      const sortOrderDifference = (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
+      if (sortOrderDifference !== 0) return sortOrderDifference;
+      return `${a.name}${a.version}`.localeCompare(`${b.name}${b.version}`);
+    });
+    return new Map(orderedProducts.map((product, index) => [product.id, index + 1]));
+  }, [products, categories]);
+
   const entityName = useMemo(() => {
     if (selectedEntity === 'all') return 'all';
     if (salesReportType === 'dealer') {
@@ -114,8 +127,10 @@ const Reports = () => {
     return selectedEntity;
   }, [selectedEntity, salesReportType, dealers]);
 
+  const isProductSalesReport = salesReportType === 'dealer' || officerSubtype === 'product';
+
   const salesReportData = useMemo(() => {
-    const summary: Record<string, { qty: number; amount: number; commission: number; categoryId?: string }> = {};
+    const summary: Record<string, { qty: number; amount: number; commission: number; categoryId?: string; productId?: string; serial?: number }> = {};
     let totalQty = 0;
     let totalAmount = 0;
     let totalCommission = 0;
@@ -134,12 +149,20 @@ const Reports = () => {
         const product = products.find(p => p.id === item.productId);
         if (selectedCategory !== 'all' && product?.categoryId !== selectedCategory) return;
 
+        const productReport = salesReportType === 'dealer' || officerSubtype === 'product';
         const key = (salesReportType === 'officer' && officerSubtype === 'dealer')
           ? `${o.customerName || 'Unknown'}${selectedEntity === 'all' ? ` [${o.officer || 'Unassigned'}]` : ''}`
-          : item.productName;
+          : item.productId || item.productName;
         
         if (!summary[key]) {
-          summary[key] = { qty: 0, amount: 0, commission: 0, categoryId: product?.categoryId };
+          summary[key] = {
+            qty: 0,
+            amount: 0,
+            commission: 0,
+            categoryId: product?.categoryId,
+            productId: product?.id,
+            serial: productReport && product?.id ? productSerialMap.get(product.id) : undefined
+          };
         }
         const itemComm = (item.commission || 0) + (
           o.includePriceIncreaseInCommission
@@ -159,7 +182,15 @@ const Reports = () => {
       }
     });
 
-    const rows = Object.entries(summary).map(([name, data]) => ({ name, ...data }));
+    const rows = Object.entries(summary)
+      .map(([key, data]) => ({
+        name: data.productId ? products.find(p => p.id === data.productId)?.name || key : key,
+        ...data
+      }))
+      .sort((a, b) => {
+        if (a.serial !== undefined && b.serial !== undefined) return a.serial - b.serial;
+        return a.name.localeCompare(b.name);
+      });
 
     if (categoryView === 'splitted') {
       const grouped: Record<string, { rows: typeof rows, subQty: number, subAmount: number, subCommission: number }> = {};
@@ -178,7 +209,7 @@ const Reports = () => {
     }
 
     return { rows, totalQty, totalAmount, totalCommission, isSplitted: false };
-  }, [filteredOrders, salesReportType, officerSubtype, selectedEntity, selectedCategory, products, categoryView, categories]);
+  }, [filteredOrders, salesReportType, officerSubtype, selectedEntity, selectedCategory, products, categoryView, categories, productSerialMap]);
 
   const dealerRankings = useMemo(() => {
     const summary: Record<string, { name: string; amount: number; qty: number; orders: number }> = {};
@@ -491,9 +522,19 @@ const Reports = () => {
                           <h4 className="text-[10px] font-black uppercase text-slate-600 tracking-widest">{catName}</h4>
                         </div>
                         <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50/50">
+                              {isProductSalesReport && <TableHead className="text-[10px] font-bold uppercase py-3 text-center w-12">SI</TableHead>}
+                              <TableHead className="text-[10px] font-bold uppercase py-3 pl-6">Product Description</TableHead>
+                              <TableHead className="text-center text-[10px] font-bold uppercase">Qty</TableHead>
+                              <TableHead className="text-right text-[10px] font-bold uppercase">Total Amount</TableHead>
+                              {salesReportType === 'officer' && showCommission && <TableHead className="text-right text-[10px] font-bold uppercase pr-6">Commission</TableHead>}
+                            </TableRow>
+                          </TableHeader>
                           <TableBody>
                             {group.rows.map((r, i) => (
                               <TableRow key={i} className="hover:bg-slate-50/30 transition-colors">
+                                {isProductSalesReport && <TableCell className="text-center font-black text-slate-500 text-xs">{r.serial}</TableCell>}
                                 <TableCell className="py-3 font-normal text-slate-900 text-xs w-[40%] pl-6">
                                   {r.name}
                                 </TableCell>
@@ -505,7 +546,7 @@ const Reports = () => {
                               </TableRow>
                             ))}
                             <TableRow className="bg-slate-50/50">
-                              <TableCell className="py-3 text-sm font-black uppercase text-slate-900 pl-6">SUBTOTAL</TableCell>
+                              <TableCell colSpan={isProductSalesReport ? 2 : 1} className="py-3 text-sm font-black uppercase text-slate-900 pl-6">SUBTOTAL</TableCell>
                               <TableCell className="text-center text-sm font-black text-blue-700">{group.subQty}</TableCell>
                               <TableCell className="text-right text-sm font-black text-slate-900">{formatNumber(group.subAmount)}</TableCell>
                               {salesReportType === 'officer' && showCommission && (
@@ -520,8 +561,9 @@ const Reports = () => {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-50/50">
+                          {isProductSalesReport && <TableHead className="text-[10px] font-bold uppercase py-4 text-center w-12">SI</TableHead>}
                           <TableHead className="text-[10px] font-bold uppercase py-4 pl-6">
-                            {salesReportType === 'officer' && officerSubtype === 'dealer' ? 'Dealer Name' : 'Product Description'}
+                            {isProductSalesReport ? 'Product Description' : 'Dealer Name'}
                           </TableHead>
                           <TableHead className="text-center text-[10px] font-bold uppercase">Qty</TableHead>
                           <TableHead className="text-right text-[10px] font-bold uppercase">Total Amount</TableHead>
@@ -533,6 +575,7 @@ const Reports = () => {
                       <TableBody>
                         {salesReportData.rows!.map((r, i) => (
                           <TableRow key={i} className="hover:bg-slate-50/30 transition-colors">
+                            {isProductSalesReport && <TableCell className="text-center font-black text-slate-500 text-xs">{r.serial}</TableCell>}
                             <TableCell className="py-3 font-normal text-slate-900 text-xs pl-6">
                               {r.name}
                             </TableCell>

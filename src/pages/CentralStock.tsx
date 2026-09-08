@@ -104,17 +104,18 @@ const SortableProductRow = ({
         lastInCategory && "border-b-2 border-b-slate-300"
       )}
     >
-      <TableCell className="py-1.5 px-1 w-7 border-r border-slate-100 sticky left-0 bg-inherit z-[5] p-0 text-center">
+      <TableCell className="py-1.5 px-1 w-10 min-w-10 border-r border-slate-100 sticky left-0 bg-inherit z-[5] p-0 text-center">
         {isEditing ? (
-          <div {...attributes} {...listeners} className="inline-flex items-center justify-center w-7 h-6 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none">
+          <div {...attributes} {...listeners} className="inline-flex items-center justify-center gap-0.5 w-10 h-6 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none">
+            <span className="text-[9px] font-black tabular-nums">{row.serialNumber || idx + 1}</span>
             <GripVertical className="w-3 h-3" />
           </div>
         ) : (
-          <div className="w-7 h-6 inline-flex items-center justify-center text-[9px] font-black text-slate-400 tabular-nums">{row.serialNumber || idx + 1}</div>
+          <div className="w-10 h-6 inline-flex items-center justify-center text-[9px] font-black text-slate-400 tabular-nums">{row.serialNumber || idx + 1}</div>
         )}
       </TableCell>
       <TableCell className={cn(
-        "py-1.5 px-2 border-r border-slate-100 sticky left-[28px] bg-inherit z-[5] w-[220px]",
+        "py-1.5 px-2 border-r border-slate-100 sticky left-10 bg-inherit z-[5] w-[160px] min-w-[160px] md:w-[220px] md:min-w-[220px]",
         row.status === 'inactive' && "line-through opacity-60"
       )}>
         <div className="font-bold text-slate-800 text-[11px] leading-tight truncate">{row.name}</div>
@@ -621,12 +622,12 @@ export default function CentralStock() {
 
           {/* Table */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="relative overflow-auto max-h-[calc(100vh-290px)] tabular-nums">
-              <Table className="text-xs border-collapse">
+            <div className="relative overflow-auto max-h-[calc(100vh-270px)] tabular-nums overscroll-x-contain">
+              <Table className="min-w-[980px] text-xs border-collapse">
                 <TableHeader>
                   <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200">
-                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-7">Serial</TableHead>
-                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[220px] border-r border-slate-200 sticky top-0 left-[28px] bg-slate-100 z-[50]">Product</TableHead>
+                    <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-10 min-w-10">Serial</TableHead>
+                    <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[160px] min-w-[160px] md:w-[220px] md:min-w-[220px] border-r border-slate-200 sticky top-0 left-10 bg-slate-100 z-[50]">Product</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-600 text-center border-r border-slate-200 bg-slate-50 z-[30] sticky top-0" colSpan={3}>
                       Entry Qty
                     </TableHead>
@@ -644,8 +645,8 @@ export default function CentralStock() {
                     </TableHead>
                   </TableRow>
                   <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200">
-                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-7">No.</TableHead>
-                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-[28px] bg-slate-50 z-[49]">Name / Version</TableHead>
+                    <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-10 min-w-10">No.</TableHead>
+                    <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-10 bg-slate-50 z-[49]">Name / Version</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-orange-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">CTG</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-800 text-center border-r border-slate-200 bg-slate-100/70 sticky top-[36px] z-[29]">Total</TableHead>
@@ -676,8 +677,8 @@ export default function CentralStock() {
                       return (
                         <React.Fragment key={g.category.id}>
                           <TableRow className="bg-slate-900/90 hover:bg-slate-900/90 border-b border-slate-800">
-                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-0 bg-slate-900/90 z-[10] w-7"></TableCell>
-                            <TableCell className="py-1.5 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky left-[28px] bg-slate-900/90 z-[10]">
+                            <TableCell className="py-1.5 px-1 border-r border-slate-800/60 sticky left-0 bg-slate-900/90 z-[10] w-10"></TableCell>
+                            <TableCell className="py-1.5 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky left-10 bg-slate-900/90 z-[10]">
                               <span className="opacity-60 mr-1.5">{String.fromCharCode(9632)}</span>
                               {catName}
                               <span className="ml-2 font-normal text-slate-300 text-[9px] tracking-wide">
@@ -712,8 +713,8 @@ export default function CentralStock() {
                     })}
                     {grouped.length > 0 && (
                       <TableRow className="bg-slate-800 hover:bg-slate-800 sticky bottom-0 z-[15] border-t-2 border-slate-700">
-                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-0 bg-slate-800 z-[16] w-7"></TableCell>
-                        <TableCell className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky bottom-0 left-[28px] bg-slate-800 z-[16]">
+                        <TableCell className="py-2 px-1 border-r border-slate-700 sticky bottom-0 left-0 bg-slate-800 z-[16] w-10"></TableCell>
+                        <TableCell className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-white sticky bottom-0 left-10 bg-slate-800 z-[16]">
                           Grand Total
                         </TableCell>
                         <TableCell className="py-2 px-2 text-right tabular-nums text-[11px] font-bold text-blue-200 border-r border-slate-700">{fmt(totals.entriesDhaka)}</TableCell>
