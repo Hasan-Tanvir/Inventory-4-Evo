@@ -96,6 +96,9 @@ create table if not exists public.payments (
   amount numeric not null default 0,
   reference text,
   notes text,
+  status text not null default 'approved',
+  created_by text,
+  approved_by text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );

@@ -322,11 +322,21 @@ const Payments = () => {
 
   const handleApprovePayment = async (paymentId: string) => {
     if (!currentUser) return;
-    await api.approvePayment(paymentId, currentUser.name);
-    const p = await api.getPayments() || [];
-    setPayments([...p].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    setDealers(await api.getDealers() || []);
-    showSuccess("Payment approved");
+    try {
+      const result = await api.approvePayment(paymentId, currentUser.name);
+      if (!result.success) {
+        showError(result.message || "Payment approval failed");
+        return;
+      }
+
+      const p = await api.getPayments() || [];
+      setPayments([...p].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setDealers(await api.getDealers() || []);
+      showSuccess("Payment approved");
+    } catch (error) {
+      console.error('Payment approval failed:', error);
+      showError("Payment approval failed");
+    }
   };
 
   const handleEdit = (p: Payment) => {

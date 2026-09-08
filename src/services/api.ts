@@ -285,7 +285,10 @@ const getRemote = async <T>(key: string, def: T): Promise<T> => {
         type: row.type,
         amount: Number(row.amount) || 0,
         reference: row.reference,
-        notes: row.notes
+        notes: row.notes,
+        status: row.status || 'approved',
+        createdBy: row.created_by,
+        approvedBy: row.approved_by
       }));
     } else if (key === KEYS.PRODUCT_STOCK_ENTRIES) {
       mappedData = data.map(row => ({
@@ -550,7 +553,10 @@ const pushRemote = async (key: string, item: any) => {
         type: item.type,
         amount: item.amount,
         reference: item.reference,
-        notes: item.notes
+        notes: item.notes,
+        status: item.status || 'approved',
+        created_by: item.createdBy,
+        approved_by: item.approvedBy
       };
     } else if (key === KEYS.PRODUCT_STOCK_ENTRIES) {
       row = {
