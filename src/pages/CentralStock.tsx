@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Layout from '@/components/Layout';
 import { api } from '@/services/api';
 import { Product, Category, ProductStockEntry, ProductStockTransfer, Order, Slab } from '@/types';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -665,9 +665,9 @@ export default function CentralStock() {
           {/* Table */}
           <div ref={tablePrintRef} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="relative overflow-auto max-h-[calc(100vh-270px)] tabular-nums overscroll-x-contain print:max-h-none print:overflow-visible">
-              <Table className="min-w-[980px] text-xs border-separate border-spacing-0">
-                <TableHeader className="sticky top-0 z-[40] bg-white" style={{ position: 'sticky', top: 0, zIndex: 40 }}>
-                  <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200 sticky top-0 z-[45]">
+              <table className="min-w-[980px] w-full text-xs border-separate border-spacing-0">
+                <TableHeader className="bg-white" style={{ position: 'sticky', top: 0, zIndex: 40 }}>
+                  <TableRow className="bg-slate-100 hover:bg-slate-100 border-b border-slate-200">
                     <TableHead className="py-2 px-1 text-[9px] font-black uppercase text-slate-600 text-center border-r border-slate-200 sticky top-0 left-0 bg-slate-100 z-[50] w-10 min-w-10">Serial</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-700 w-[160px] min-w-[160px] md:w-[220px] md:min-w-[220px] border-r border-slate-200 sticky top-0 left-10 bg-slate-100 z-[50]">Product</TableHead>
                     <TableHead className="py-2 px-2 text-[10px] font-black uppercase tracking-wider text-slate-600 text-center border-r border-slate-200 bg-slate-50 z-[30] sticky top-0" colSpan={3}>
@@ -686,7 +686,7 @@ export default function CentralStock() {
                       Retail Price
                     </TableHead>
                   </TableRow>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200 sticky top-[36px] z-[44]">
+                  <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200">
                     <TableHead className="py-1.5 px-1 text-[9px] font-black uppercase text-slate-500 text-center border-r border-slate-200 sticky top-[36px] left-0 bg-slate-50 z-[49] w-10 min-w-10">No.</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 border-r border-slate-200 sticky top-[36px] left-10 bg-slate-50 z-[49]">Name / Version</TableHead>
                     <TableHead className="py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-blue-700 text-center border-r border-slate-200 sticky top-[36px] z-[29]">DHK</TableHead>
@@ -774,7 +774,7 @@ export default function CentralStock() {
                     )}
                   </TableBody>
                 </SortableContext>
-              </Table>
+              </table>
             </div>
           </div>
         </div>
