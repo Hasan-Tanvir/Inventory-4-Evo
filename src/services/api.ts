@@ -1042,29 +1042,40 @@ export const api = {
   savePayment: async (p: Payment) => {
     const payments = await api.getPayments();
     const existing = payments.find(x => x.id === p.id);
-    
-    let payment = { ...p };
+    const currentUser = api.getCurrentUser();
+    const status = p.status || (currentUser?.role === 'member' ? 'pending' : 'approved');
+
+    let payment = {
+      ...p,
+      status,
+      createdBy: p.createdBy || currentUser?.id || currentUser?.name,
+      approvedBy: p.approvedBy || (status === 'approved' ? (currentUser?.name || 'admin') : undefined)
+    };
+
     if (!payment.id) {
       payment.id = await api.getNextPaymentId();
     }
-    
-    // If it's a new payment or modified, update dealer balance
-    if (payment.dealerId) {
+
+    // Pending member submissions are not applied to dealer balance until an admin approves them.
+    if (payment.dealerId && payment.status === 'approved') {
       const dealers = await api.getDealers();
       const dealer = dealers.find(d => d.id === payment.dealerId);
       if (dealer) {
         let balanceAdjustment = Number(payment.amount) || 0;
         if (existing) {
-          // If editing, adjust by the difference
-          balanceAdjustment = (Number(payment.amount) || 0) - (Number(existing.amount) || 0);
+          if (existing.status === 'approved') {
+            balanceAdjustment = (Number(payment.amount) || 0) - (Number(existing.amount) || 0);
+          } else if (existing.status === 'pending') {
+            balanceAdjustment = Number(payment.amount) || 0;
+          }
         }
-        
+
         // CREDIT adjustments (like rewards) should increase balance, but PAYMENTS (cash/bank) should decrease it.
         // In this system, 'balance' usually means 'amount dealer owes us' or 'due'.
         // If type is Adjustment, it's likely a reward (Credit), so it should DECREASE the due.
         // If type is Cash/Bank, it DECREASES the due.
         // If type is Last balance Due, it INCREASES the due.
-        
+
         let multiplier = -1; // Default: payments decrease due
         if (payment.type === 'Last balance Due' || payment.type === 'Purchase' || payment.type === 'Approval') {
           multiplier = 1; // These increase due
@@ -1080,10 +1091,25 @@ export const api = {
     await pushRemote(KEYS.PAYMENTS, payment);
     return payment;
   },
+  approvePayment: async (id: string, approverName: string) => {
+    const payments = await api.getPayments();
+    const payment = payments.find(p => p.id === id);
+    if (!payment) return { success: false, message: 'Payment not found' };
+    if (payment.status === 'approved') return { success: true, payment };
+
+    const approvedPayment = {
+      ...payment,
+      status: 'approved' as const,
+      approvedBy: approverName
+    };
+
+    const saved = await api.savePayment(approvedPayment);
+    return { success: true, payment: saved };
+  },
   deletePayment: async (id: string) => {
     const payments = await api.getPayments();
     const payment = payments.find(p => p.id === id);
-    if (payment && payment.dealerId) {
+    if (payment && payment.dealerId && payment.status === 'approved') {
       const dealers = await api.getDealers();
       const dealer = dealers.find(d => d.id === payment.dealerId);
       if (dealer) {

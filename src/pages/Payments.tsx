@@ -36,6 +36,7 @@ const Payments = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const currentUser = api.getCurrentUser();
+  const isMember = currentUser?.role === 'member';
 
   const firstOfMonth = () => {
     const d = new Date();
@@ -288,7 +289,7 @@ const Payments = () => {
 
   const handleSave = async () => {
     if (!selectedDealer || !amount) return showError("Select dealer and enter amount");
-    
+
     const payment: Payment = {
       id: editingPayment?.id || await api.getNextPaymentId(),
       dealerId: selectedDealer.id,
@@ -297,14 +298,17 @@ const Payments = () => {
       type,
       amount: cleanAmount(amount),
       reference,
-      notes
+      notes,
+      status: isMember ? 'pending' : 'approved',
+      createdBy: currentUser?.id || currentUser?.name,
+      approvedBy: isMember ? undefined : currentUser?.name
     };
 
     await api.savePayment(payment);
     const p = await api.getPayments() || [];
     setPayments([...p].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     setDealers(await api.getDealers() || []);
-    
+
     // Reset form
     setSelectedDealer(null);
     setDealerSearch('');
@@ -313,7 +317,16 @@ const Payments = () => {
     setNotes('');
     setPaymentDate(getTodayISO());
     setEditingPayment(null);
-    showSuccess("Payment recorded successfully");
+    showSuccess(isMember ? "Payment submitted for admin approval" : "Payment recorded successfully");
+  };
+
+  const handleApprovePayment = async (paymentId: string) => {
+    if (!currentUser) return;
+    await api.approvePayment(paymentId, currentUser.name);
+    const p = await api.getPayments() || [];
+    setPayments([...p].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    setDealers(await api.getDealers() || []);
+    showSuccess("Payment approved");
   };
 
   const handleEdit = (p: Payment) => {
@@ -550,14 +563,24 @@ const Payments = () => {
                           <div className="text-xs font-bold text-slate-900">{p.dealerName}</div>
                         </TableCell>
                         <TableCell className="py-2 px-3 h-12">
-                          <span className={cn(
-                            "text-[9px] px-2 py-0.5 rounded-full font-black uppercase border",
-                            p.type === 'Cash' ? "bg-green-50 text-green-600 border-green-100" :
-                            p.type === 'Bank Transfer' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                            "bg-slate-50 text-slate-600 border-slate-100"
-                          )}>
-                            {p.type}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className={cn(
+                              "text-[9px] px-2 py-0.5 rounded-full font-black uppercase border w-fit",
+                              p.type === 'Cash' ? "bg-green-50 text-green-600 border-green-100" :
+                              p.type === 'Bank Transfer' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                              "bg-slate-50 text-slate-600 border-slate-100"
+                            )}>
+                              {p.type}
+                            </span>
+                            {p.status && (
+                              <span className={cn(
+                                "text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase w-fit",
+                                p.status === 'pending' ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              )}>
+                                {p.status}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="py-2 px-3 h-12 max-w-[200px] truncate text-[11px] font-bold text-slate-700 uppercase tracking-tight">
                           {p.notes}
@@ -566,6 +589,11 @@ const Payments = () => {
                           {p.amount.toLocaleString('en-IN')}
                         </TableCell>
                         <TableCell className="text-right py-2 px-3 h-12 space-x-1">
+                          {currentUser?.role === 'admin' && p.status === 'pending' && (
+                            <Button variant="secondary" size="sm" className="h-7 px-2 text-[10px] font-black bg-emerald-50 text-emerald-700 border-emerald-200" onClick={() => handleApprovePayment(p.id)}>
+                              Approve
+                            </Button>
+                          )}
                           <Button variant="secondary" size="icon" className="h-7 w-7 text-blue-600 bg-blue-50 border-blue-100" onClick={() => handleEdit(p)}>
                             <Edit className="w-3.5 h-3.5" />
                           </Button>

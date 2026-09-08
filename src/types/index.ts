@@ -174,6 +174,9 @@ export interface Payment {
   amount: number;
   reference?: string;
   notes?: string;
+  status?: 'pending' | 'approved';
+  createdBy?: string;
+  approvedBy?: string;
 }
 
 export interface Target {
