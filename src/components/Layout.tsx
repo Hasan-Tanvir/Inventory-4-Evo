@@ -37,9 +37,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       setConfig(await api.getConfig());
       const ns = await api.getNotifications(currentUser.id);
       setNotifications(Array.isArray(ns) ? ns : []);
-      const memberTabs = currentUser.role === 'member'
-        ? Array.from(new Set([...(currentUser.allowedTabs || []), '/central-stock']))
-        : [];
+      const memberTabs = currentUser.role === 'member' ? (currentUser.allowedTabs || []) : [];
       if (memberTabs.length > 0 && !memberTabs.includes(location.pathname)) {
         navigate(memberTabs[0]);
       }
@@ -81,7 +79,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     if (!item.roles.includes(user.role)) return false;
     if (user.role !== 'member') return true;
     if (!user.allowedTabs || user.allowedTabs.length === 0) return true;
-    return item.path === '/central-stock' || user.allowedTabs.includes(item.path);
+    return user.allowedTabs.includes(item.path);
   });
 
   const defaultMobileQuickPaths = ['/', '/new-order', '/orders', '/invoices', '/balance'];
