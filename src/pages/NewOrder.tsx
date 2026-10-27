@@ -7,7 +7,7 @@ import { api } from '@/services/api';
 import { formatNumber, generateInvoiceHtml, printDoc } from '@/utils/invoice-generator';
 import { getTodayISO } from '@/utils/date';
 import { showSuccess, showError } from '@/utils/toast';
-import { Dealer, Officer, Product, Order, Customization } from '@/types';
+import { Dealer, Officer, Product, ProductVariant, ProductVariantGroup, Order, Customization } from '@/types';
 import { Trash2, ChevronDown, ChevronUp, Plus, GripVertical, Download, FileText, X, RefreshCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
@@ -21,11 +21,15 @@ const emptyItem = () => ({
   productName: '',
   version: '',
   variation: '',
+  legacyVariation: '',
+  variantId: '',
+  variantAttributes: {} as Record<string, string>,
   quantity: 1,
   price: 0,
   total: 0,
   location: 'dhaka' as 'dhaka' | 'chittagong',
   commission: 0,
+  commissionAdjustment: 0,
   serials: '',
   basePrice: 0,
   baseCommissionPerUnit: 0,
@@ -33,6 +37,18 @@ const emptyItem = () => ({
 });
 
 type OrderItemRow = ReturnType<typeof emptyItem>;
+
+interface SortableItemProps {
+  item: OrderItemRow;
+  index: number;
+  products: Product[];
+  orderType: 'dealer' | 'retail';
+  inventorySource: 'dhaka' | 'chittagong' | 'mixed';
+  updateItem: (index: number, field: keyof OrderItemRow, value: string | number) => void;
+  updateVariantAttribute: (index: number, groupId: string, value: string) => void;
+  removeItem: (index: number) => void;
+  addItem: () => void;
+}
 
 const StockBadge = ({ dhaka, chittagong }: { dhaka: number; chittagong: number }) => (
   <div className="flex shrink-0 items-center gap-1 text-[9px] font-bold">
@@ -51,7 +67,7 @@ const StockBadge = ({ dhaka, chittagong }: { dhaka: number; chittagong: number }
   </div>
 );
 
-const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, removeItem, addItem, selectedProductIds }: any) => {
+const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, updateVariantAttribute, removeItem, addItem }: SortableItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   
   const style = {
@@ -61,9 +77,8 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const productOptions = (Array.isArray(products) ? products : [])
-    .filter((p: any) => p && p.status === 'active' && (!selectedProductIds.includes(p.id) || p.id === item.productId));
-  const getDisplayName = (item: OrderItemRow) => item.version ? `${item.productName} ${item.version}` : item.productName;
+  const productOptions = products.filter(product => product.status === 'active');
+  const getDisplayName = (orderItem: OrderItemRow) => orderItem.version ? `${orderItem.productName} ${orderItem.version}` : orderItem.productName;
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [productInput, setProductInput] = useState(getDisplayName(item) || '');
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -81,8 +96,53 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
     boxShadow: '0 20px 40px rgba(15, 23, 42, 0.12)'
   });
 
-  const allProducts = Array.isArray(products) ? products : [];
-  const selectedProduct = item.productId ? allProducts.find((p: any) => p && p.id === item.productId) : null;
+  const selectedProduct = item.productId ? products.find(product => product.id === item.productId) : undefined;
+  const variantGroups: ProductVariantGroup[] = selectedProduct?.variantGroups || [];
+  const selectedVariant = variantGroups.length && variantGroups.every(group => item.variantAttributes?.[group.id])
+    ? (selectedProduct?.variants || []).find((variant: ProductVariant) =>
+        variantGroups.every(group => variant.attributes?.[group.id] === item.variantAttributes?.[group.id])
+      )
+    : undefined;
+
+  const renderVariantSelectors = (compact: boolean) => variantGroups.length
+    ? variantGroups.map(group => (
+      <div key={group.id}>
+        <label className="mt-1 block text-[9px] font-bold text-slate-500">{group.name}</label>
+        <select
+          value={item.variantAttributes?.[group.id] || ''}
+          onChange={e => updateVariantAttribute(index, group.id, e.target.value)}
+          disabled={!selectedProduct}
+          className={cn(
+            "w-full border border-slate-200 bg-white rounded-lg outline-none focus:border-blue-400 disabled:bg-slate-50",
+            compact ? "mt-1 px-2 py-1.5 text-xs" : "mt-1.5 px-3 py-1.5 text-xs"
+          )}
+          aria-label={`${group.name} option`}
+        >
+          <option value="">Select {group.name}</option>
+          {(group.options || []).map(option => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </div>
+    ))
+    : null;
+
+  const renderLegacyVariationSelector = (compact: boolean) => selectedProduct?.variations?.length
+    ? (
+      <select
+        value={item.legacyVariation || (!variantGroups.length ? item.variation : '')}
+        onChange={e => updateItem(index, 'legacyVariation', e.target.value)}
+        disabled={!selectedProduct}
+        className={cn(
+          "w-full border border-slate-200 bg-white rounded-lg outline-none focus:border-blue-400 disabled:bg-slate-50",
+          compact ? "mt-1 px-2 py-1.5 text-xs" : "mt-1.5 px-3 py-1.5 text-xs"
+        )}
+        aria-label="Legacy order variation (optional)"
+      >
+        <option value="">No legacy variation</option>
+        {(selectedProduct.variations || []).map(variation => <option key={variation} value={variation}>{variation}</option>)}
+        {item.legacyVariation && !(selectedProduct.variations || []).includes(item.legacyVariation) && <option value={item.legacyVariation}>{item.legacyVariation} (previously saved)</option>}
+      </select>
+    )
+    : null;
 
   const updateDropdownPosition = () => {
     // Inline absolute dropdown does not need runtime repositioning.
@@ -97,10 +157,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
   }, [showSuggestions]);
 
   const productQuery = productInput.trim().toLowerCase();
-  const matchingProducts = (Array.isArray(productOptions) ? productOptions : [])
-    .filter((p: any) => {
-      if (!p) return false;
-      const fullName = `${p.name}${p.version ? ` ${p.version}` : ''}`.toLowerCase();
+  const matchingProducts = productOptions
+    .filter(product => {
+      const fullName = `${product.name}${product.version ? ` ${product.version}` : ''}`.toLowerCase();
       return productQuery === '' ? true : fullName.includes(productQuery);
     });
 
@@ -122,7 +181,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
     }, 150);
   };
 
-  const selectProduct = (product: any) => {
+  const selectProduct = (product: Product) => {
     const fullName = `${product.name}${product.version ? ` ${product.version}` : ''}`;
     setProductInput(fullName);
     setShowSuggestions(false);
@@ -154,21 +213,17 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             className="w-full border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-bold rounded-xl outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 transition-all"
             placeholder="Search products..."
           />
-          <select
-            value={item.variation}
-            onChange={e => updateItem(index, 'variation', e.target.value)}
-            disabled={!selectedProduct}
-            className="mt-1.5 w-full border border-slate-200 bg-white px-3 py-1.5 text-xs rounded-lg outline-none focus:border-blue-400 disabled:bg-slate-50"
-            aria-label="Order variation (optional)"
-          >
-            <option value="">No variation</option>
-            {(selectedProduct?.variations || []).map((variation: string) => <option key={variation} value={variation}>{variation}</option>)}
-            {item.variation && !(selectedProduct?.variations || []).includes(item.variation) && <option value={item.variation}>{item.variation} (previously saved)</option>}
-          </select>
+          {renderVariantSelectors(false)}
+          {renderLegacyVariationSelector(false)}
+          {selectedVariant && (
+            <div className="mt-1 text-[10px] font-semibold text-slate-500">
+              Option stock: DHK {selectedVariant.dhaka || 0} / CTG {selectedVariant.chittagong || 0}
+            </div>
+          )}
           {showSuggestions && (
             <div style={dropdownStyle} onMouseDown={e => e.preventDefault()}>
               <div className="max-h-72 overflow-y-auto">
-                {(Array.isArray(matchingProducts) ? matchingProducts : []).length ? (Array.isArray(matchingProducts) ? matchingProducts : []).map((product: any) => (
+                {matchingProducts.length ? matchingProducts.map(product => (
                 <button
                   key={product.id}
                   type="button"
@@ -209,7 +264,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">Branch</label>
           <select
             value={inventorySource === 'mixed' ? item.location : inventorySource}
-            onChange={e => updateItem(index, 'location', e.target.value as any)}
+            onChange={e => updateItem(index, 'location', e.target.value as 'dhaka' | 'chittagong')}
             disabled={inventorySource !== 'mixed'}
             className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-xs font-black rounded-xl text-right outline-none focus:bg-white transition-all appearance-none cursor-pointer"
           >
@@ -265,7 +320,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
         {showSuggestions && (
           <div className="relative overflow-visible">
             <div style={dropdownStyle} onMouseDown={e => e.preventDefault()}>
-              {(Array.isArray(matchingProducts) ? matchingProducts : []).length ? (Array.isArray(matchingProducts) ? matchingProducts : []).map((product: any) => (
+              {matchingProducts.length ? matchingProducts.map(product => (
                 <button
                   key={product.id}
                   type="button"
@@ -288,19 +343,20 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           </div>
         )}
 
-        <div>
-          <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">Variation (optional)</label>
-          <select
-            value={item.variation}
-            onChange={e => updateItem(index, 'variation', e.target.value)}
-            disabled={!selectedProduct}
-            className="w-full border border-slate-200 bg-white px-2 py-1.5 text-xs rounded-lg outline-none disabled:bg-slate-50"
-          >
-            <option value="">No variation</option>
-            {(selectedProduct?.variations || []).map((variation: string) => <option key={variation} value={variation}>{variation}</option>)}
-            {item.variation && !(selectedProduct?.variations || []).includes(item.variation) && <option value={item.variation}>{item.variation} (previously saved)</option>}
-          </select>
-        </div>
+        {(variantGroups.length > 0 || selectedProduct?.variations?.length > 0) && (
+          <div>
+            <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">
+              {variantGroups.length ? 'Product Options' : 'Variation (optional)'}
+            </label>
+            {renderVariantSelectors(true)}
+            {renderLegacyVariationSelector(true)}
+            {selectedVariant && (
+              <div className="mt-1 text-[9px] font-semibold text-slate-500">
+                Stock: DHK {selectedVariant.dhaka || 0} / CTG {selectedVariant.chittagong || 0}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={cn("grid gap-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
           <div>
@@ -324,7 +380,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">Source</label>
             <select
               value={inventorySource === 'mixed' ? item.location : inventorySource}
-              onChange={e => updateItem(index, 'location', e.target.value as any)}
+              onChange={e => updateItem(index, 'location', e.target.value as 'dhaka' | 'chittagong')}
               disabled={inventorySource !== 'mixed'}
               className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-right outline-none"
             >
@@ -542,19 +598,28 @@ export default function NewOrder() {
     setItems((Array.isArray(ord.items) ? ord.items : []).map(item => {
       const allProducts = Array.isArray(effectiveProducts) ? effectiveProducts : [];
       const product = allProducts.find(p => p && p.id === item.productId);
-      const retailPrice = product?.retailPrice ?? (item.basePrice || item.price || 0);
-      const commissionPerUnit = product ? product.commission : Number(item.commission || 0) / (item.quantity || 1);
+      const variant = product?.variants?.find(candidate => candidate.id === item.variantId);
+      const retailPrice = variant?.price ?? product?.retailPrice ?? (item.basePrice || item.price || 0);
+      const commissionPerUnit = variant
+        ? Math.max(0, (Number(product?.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
+        : product && !item.variantId
+          ? product.commission
+          : Number(item.commission || 0) / (item.quantity || 1);
       return {
         id: Math.random().toString(36).substr(2, 9),
         productId: item.productId,
         productName: item.productName,
         version: item.version || '',
         variation: item.variation || '',
+        variantId: item.variantId || '',
+        variantAttributes: item.variantAttributes || {},
+        legacyVariation: item.variantId ? '' : (item.variation || ''),
         quantity: item.quantity || 1,
         price: item.price || 0,
         total: item.total || 0,
         location: item.location || 'dhaka',
         commission: item.commission, // Preserve the edited commission value
+        commissionAdjustment: Number(item.commissionAdjustment ?? variant?.commissionAdjustment) || 0,
         serials: (Array.isArray(item.serialNumbers) ? item.serialNumbers : []).join(', '),
         basePrice: retailPrice,
         baseCommissionPerUnit: commissionPerUnit,
@@ -591,13 +656,30 @@ export default function NewOrder() {
       if (idx !== index) return item;
       const updated = { ...item, [field]: value } as OrderItemRow;
 
+      if (field === 'legacyVariation') {
+        const groupLabel = (products.find(product => product.id === updated.productId)?.variantGroups || [])
+          .map(group => `${group.name}: ${updated.variantAttributes[group.id] || ''}`)
+          .filter(label => !label.endsWith(': '))
+          .join(' / ');
+        updated.legacyVariation = String(value);
+        updated.variation = [groupLabel, String(value)].filter(Boolean).join(' / ');
+      } else if (field === 'variation') {
+        updated.legacyVariation = String(value);
+      }
+
       if (field === 'productId' || field === 'productName') {
         const allProducts = Array.isArray(products) ? products : [];
         const product = field === 'productId'
           ? allProducts.find(p => p && p.id === value)
           : allProducts.find(p => p && `${p.name}${p.version ? ` ${p.version}` : ''}`.toLowerCase() === String(value).toLowerCase().trim());
         if (product) {
-          if (field === 'productId' && product.id !== item.productId) updated.variation = '';
+          if (field === 'productId' && product.id !== item.productId) {
+            updated.variation = '';
+            updated.legacyVariation = '';
+            updated.variantId = '';
+            updated.variantAttributes = {};
+            updated.commissionAdjustment = 0;
+          }
           updated.productId = product.id;
           updated.productName = product.name;
           updated.version = product.version || '';
@@ -619,9 +701,13 @@ export default function NewOrder() {
       if (field === 'quantity' || field === 'price') {
         const qty = Number(updated.quantity) || 0;
         let price = Number(updated.price) || 0;
-        if (field === 'quantity' && orderType === 'dealer') {
-          const allProducts = Array.isArray(products) ? products : [];
-          const product = allProducts.find(p => p && p.id === updated.productId);
+        const allProducts = Array.isArray(products) ? products : [];
+        const product = allProducts.find(p => p && p.id === updated.productId);
+        const variant = product?.variants?.find(candidate => candidate.id === updated.variantId);
+        if (variant) {
+          price = Number(variant.price) || 0;
+          updated.price = price;
+        } else if (field === 'quantity' && orderType === 'dealer' && !product?.variantGroups?.length) {
           if (product) {
             const slab = (Array.isArray(product.slabs) ? product.slabs : []).find(s => s && qty >= s.min && qty <= s.max);
             if (slab) {
@@ -633,10 +719,54 @@ export default function NewOrder() {
         updated.total = qty * price;
         const priceIncrease = Math.max(0, price - (updated.basePrice || 0));
         updated.priceIncrease = priceIncrease;
-        updated.commission = (updated.baseCommissionPerUnit || 0) * qty;
+        updated.baseCommissionPerUnit = variant
+          ? Math.max(0, (Number(product?.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
+          : Number(product?.commission) || updated.baseCommissionPerUnit || 0;
+        updated.commission = updated.baseCommissionPerUnit * qty;
       }
 
       return updated;
+    }));
+  };
+
+  const updateVariantAttribute = (index: number, groupId: string, value: string) => {
+    setItems(prev => prev.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const product = products.find(candidate => candidate.id === item.productId);
+      if (!product) return item;
+
+      const variantAttributes = { ...item.variantAttributes, [groupId]: value };
+      const variantGroups = product.variantGroups || [];
+      const completeSelection = variantGroups.every(group => !!variantAttributes[group.id]);
+      const variant = completeSelection
+        ? (product.variants || []).find(candidate =>
+            variantGroups.every(group => candidate.attributes[group.id] === variantAttributes[group.id])
+          )
+        : undefined;
+      const quantity = Number(item.quantity) || 0;
+      const baseCommissionPerUnit = variant
+        ? Math.max(0, (Number(product.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
+        : Number(product.commission) || 0;
+      const variation = variant
+        ? [
+            variantGroups.map(group => `${group.name}: ${variant.attributes[group.id]}`).join(' / '),
+            item.legacyVariation
+          ].filter(Boolean).join(' / ')
+        : '';
+
+      return {
+        ...item,
+        variantAttributes,
+        variantId: variant?.id || '',
+        variation,
+        commissionAdjustment: Number(variant?.commissionAdjustment) || 0,
+        price: variant ? Number(variant.price) || 0 : item.price,
+        basePrice: variant ? Number(variant.price) || 0 : product.retailPrice || 0,
+        baseCommissionPerUnit,
+        commission: baseCommissionPerUnit * quantity,
+        total: quantity * (variant ? Number(variant.price) || 0 : item.price),
+        priceIncrease: 0
+      };
     }));
   };
 
@@ -666,6 +796,9 @@ export default function NewOrder() {
     if (orderType === 'dealer' && !selectedDealer) return showError('Select a dealer');
     if (orderType === 'retail' && !customerName.trim()) return showError('Enter customer name');
     if (!filledItems.length) return showError('Add at least one item');
+    if (filledItems.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) {
+      return showError('Every order item must have a quantity greater than zero.');
+    }
 
     setSaving(true);
     const shouldSaveAsQuote = forceQuote || (isQuote && !editOrderId);
@@ -687,24 +820,88 @@ export default function NewOrder() {
     // Check stock availability
     if (!shouldSaveAsQuote) {
       const allProducts = Array.isArray(products) ? products : [];
+      const originalOrder = editOrderId ? orders.find(o => o.id === editOrderId) : undefined;
+      const baseRequirements = new Map<string, { product: Product; location: 'dhaka' | 'chittagong'; quantity: number }>();
+      const variantRequirements = new Map<string, {
+        product: Product;
+        variantId: string;
+        location: 'dhaka' | 'chittagong';
+        quantity: number;
+      }>();
       for (const item of filledItems) {
         const product = allProducts.find(p => p.id === item.productId);
         if (product) {
           const location = inventorySource === 'mixed' ? item.location : inventorySource;
-          const available = location === 'dhaka' ? (product.dhaka || 0) : (product.chittagong || 0);
-          
-          // If editing an approved order, we need to account for current quantity already reserved
-          let reservedQty = 0;
-          if (editOrderId && originalOrderStatus === 'approved' && !originalIsQuote) {
-            const originalOrder = orders.find(o => o.id === editOrderId);
-            const originalItem = originalOrder?.items.find(i => i.productId === item.productId && i.location === location);
-            reservedQty = originalItem?.quantity || 0;
+          const baseKey = `${product.id}:${location}`;
+          const baseRequirement = baseRequirements.get(baseKey);
+          baseRequirements.set(baseKey, {
+            product,
+            location,
+            quantity: (baseRequirement?.quantity || 0) + (Number(item.quantity) || 0)
+          });
+
+          if (product.variantGroups?.length && !item.variantId) {
+            const unchangedLegacyItem = originalOrder?.items.some(originalItem =>
+              originalItem.productId === item.productId
+              && !originalItem.variantId
+              && originalItem.variation === item.variation
+              && originalItem.location === location
+            );
+            if (!unchangedLegacyItem) {
+              setSaving(false);
+              return showError(`Select all options for "${item.productName}".`);
+            }
           }
 
-          if (item.quantity > (available + reservedQty)) {
-            setSaving(false);
-            return showError(`Insufficient quantity in ${location === 'dhaka' ? 'Dhaka' : 'Chittagong'} for "${item.productName}". Available: ${available + reservedQty}`);
+          if (item.variantId) {
+            const variant = product.variants?.find(candidate => candidate.id === item.variantId);
+            if (!variant) {
+              setSaving(false);
+              return showError(`The selected option for "${item.productName}" is no longer available. Refresh the product options and try again.`);
+            }
+            const variantKey = `${product.id}:${variant.id}:${location}`;
+            const variantRequirement = variantRequirements.get(variantKey);
+            variantRequirements.set(variantKey, {
+              product,
+              variantId: variant.id,
+              location,
+              quantity: (variantRequirement?.quantity || 0) + (Number(item.quantity) || 0)
+            });
           }
+        }
+      }
+
+      for (const requirement of baseRequirements.values()) {
+        const { product, location, quantity } = requirement;
+        const available = location === 'dhaka' ? (product.dhaka || 0) : (product.chittagong || 0);
+        const reservedQty = originalOrderStatus === 'approved' && !originalIsQuote
+          ? (originalOrder?.items || [])
+              .filter(originalItem => originalItem.productId === product.id && originalItem.location === location)
+              .reduce((sum, originalItem) => sum + (Number(originalItem.quantity) || 0), 0)
+          : 0;
+        if (quantity > available + reservedQty) {
+          setSaving(false);
+          return showError(`Insufficient quantity in ${location === 'dhaka' ? 'Dhaka' : 'Chittagong'} for "${product.name}". Available: ${available + reservedQty}`);
+        }
+      }
+
+      for (const requirement of variantRequirements.values()) {
+        const { product, variantId, location, quantity } = requirement;
+        const variant = product.variants?.find(candidate => candidate.id === variantId);
+        if (!variant) continue;
+        const available = Number(variant[location]) || 0;
+        const reservedQty = originalOrderStatus === 'approved' && !originalIsQuote
+          ? (originalOrder?.items || [])
+              .filter(originalItem =>
+                originalItem.productId === product.id
+                && originalItem.variantId === variantId
+                && originalItem.location === location
+              )
+              .reduce((sum, originalItem) => sum + (Number(originalItem.quantity) || 0), 0)
+          : 0;
+        if (quantity > available + reservedQty) {
+          setSaving(false);
+          return showError(`Insufficient option quantity in ${location === 'dhaka' ? 'Dhaka' : 'Chittagong'} for "${product.name}". Available: ${available + reservedQty}`);
         }
       }
     }
@@ -725,6 +922,9 @@ export default function NewOrder() {
         productName: i.productName,
         version: i.version,
         variation: i.variation.trim() || undefined,
+        variantId: i.variantId || undefined,
+        variantAttributes: Object.keys(i.variantAttributes).length ? i.variantAttributes : undefined,
+        commissionAdjustment: i.commissionAdjustment,
         quantity: i.quantity,
         basePrice: i.basePrice,
         price: i.price,
@@ -769,13 +969,53 @@ export default function NewOrder() {
 
     // Stock check for quote too
     const allProducts = Array.isArray(products) ? products : [];
+    const baseQuantities = new Map<string, { product: Product; location: 'dhaka' | 'chittagong'; quantity: number }>();
+    const variantQuantities = new Map<string, {
+      product: Product;
+      variantId: string;
+      location: 'dhaka' | 'chittagong';
+      quantity: number;
+    }>();
     for (const item of order.items) {
       const product = allProducts.find(p => p.id === item.productId);
       if (product) {
-        const available = item.location === 'dhaka' ? (product.dhaka || 0) : (product.chittagong || 0);
-        if (item.quantity > available) {
-          return showError(`Insufficient quantity in ${item.location === 'dhaka' ? 'Dhaka' : 'Chittagong'} for "${item.productName}". Available: ${available}`);
+        const baseKey = `${product.id}:${item.location}`;
+        const currentBase = baseQuantities.get(baseKey);
+        baseQuantities.set(baseKey, {
+          product,
+          location: item.location,
+          quantity: (currentBase?.quantity || 0) + (Number(item.quantity) || 0)
+        });
+        if (product.variantGroups?.length && !item.variantId) {
+          return showError(`Select all options for "${item.productName}" before downloading the quote.`);
         }
+        if (item.variantId) {
+          const variant = product.variants?.find(candidate => candidate.id === item.variantId);
+          if (!variant) return showError(`The selected option for "${item.productName}" is no longer available.`);
+          const variantKey = `${product.id}:${variant.id}:${item.location}`;
+          const currentVariant = variantQuantities.get(variantKey);
+          variantQuantities.set(variantKey, {
+            product,
+            variantId: variant.id,
+            location: item.location,
+            quantity: (currentVariant?.quantity || 0) + (Number(item.quantity) || 0)
+          });
+        }
+      }
+    }
+    for (const requirement of baseQuantities.values()) {
+      const available = requirement.location === 'dhaka'
+        ? (requirement.product.dhaka || 0)
+        : (requirement.product.chittagong || 0);
+      if (requirement.quantity > available) {
+        return showError(`Insufficient quantity in ${requirement.location === 'dhaka' ? 'Dhaka' : 'Chittagong'} for "${requirement.product.name}". Available: ${available}`);
+      }
+    }
+    for (const requirement of variantQuantities.values()) {
+      const variant = requirement.product.variants?.find(candidate => candidate.id === requirement.variantId);
+      const available = Number(variant?.[requirement.location]) || 0;
+      if (requirement.quantity > available) {
+        return showError(`Insufficient option quantity in ${requirement.location === 'dhaka' ? 'Dhaka' : 'Chittagong'} for "${requirement.product.name}". Available: ${available}`);
       }
     }
 
@@ -810,6 +1050,9 @@ export default function NewOrder() {
       productName: i.productName,
       version: i.version,
       variation: i.variation.trim() || undefined,
+      variantId: i.variantId || undefined,
+      variantAttributes: Object.keys(i.variantAttributes).length ? i.variantAttributes : undefined,
+      commissionAdjustment: i.commissionAdjustment,
       quantity: i.quantity,
       basePrice: i.basePrice,
       price: i.price,
@@ -1081,7 +1324,7 @@ export default function NewOrder() {
                           updateItem={updateItem} 
                           removeItem={removeItem} 
                           addItem={addItem}
-                          selectedProductIds={items.map(i => i.productId).filter(Boolean)}
+                          updateVariantAttribute={updateVariantAttribute}
                         />
                       ))}
                     </SortableContext>

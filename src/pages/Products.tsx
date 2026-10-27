@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import { api } from '@/services/api';
-import { Product, Category, ProductStockEntry, ProductStockTransfer, Slab } from '@/types';
+import { Product, ProductVariant, ProductVariantGroup, Category, ProductStockEntry, ProductStockTransfer, Slab } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -83,6 +83,63 @@ const ProductSearch = ({ products, value, onChange, placeholder = "Search produc
     </div>
   );
 };
+
+const createVariantId = () => `VAR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const buildVariantCombinations = (
+  groups: ProductVariantGroup[],
+  existingVariants: ProductVariant[],
+  defaultPrice: number
+): ProductVariant[] => {
+  const configuredGroups = groups.map(group => ({
+    ...group,
+    options: [...new Set((group.options || []).map(option => option.trim()).filter(Boolean))]
+  }));
+  if (!configuredGroups.length) return [];
+  if (configuredGroups.some(group => !group.options.length)) return existingVariants;
+
+  let combinations: Record<string, string>[] = [{}];
+  configuredGroups.forEach(group => {
+    combinations = combinations.flatMap(attributes =>
+      group.options.map(option => ({ ...attributes, [group.id]: option }))
+    );
+  });
+
+  return combinations.map(attributes => {
+    const currentGroupIds = new Set(configuredGroups.map(group => group.id));
+    const existingGroupIds = new Set(existingVariants.flatMap(variant => Object.keys(variant.attributes || {})));
+    const addingGroup = [...currentGroupIds].some(groupId => !existingGroupIds.has(groupId));
+    const matchingVariants = existingVariants.filter(variant =>
+      [...currentGroupIds].some(groupId => variant.attributes?.[groupId] === attributes[groupId])
+      && Object.entries(variant.attributes || {}).every(([groupId, option]) =>
+        !currentGroupIds.has(groupId) || attributes[groupId] === option
+      )
+    );
+    const existing = matchingVariants[0];
+    return {
+      id: existing?.id || createVariantId(),
+      attributes,
+      dhaka: addingGroup ? 0 : matchingVariants.reduce((sum, variant) => sum + (Number(variant.dhaka) || 0), 0),
+      chittagong: addingGroup ? 0 : matchingVariants.reduce((sum, variant) => sum + (Number(variant.chittagong) || 0), 0),
+      price: existing ? Number(existing.price) || 0 : defaultPrice,
+      commissionAdjustment: existing ? Number(existing.commissionAdjustment) || 0 : 0
+    };
+  });
+};
+
+const duplicateProductForEdit = (product: Product): Partial<Product> => ({
+  ...product,
+  id: undefined,
+  name: `${product.name} (Copy)`,
+  dhaka: 0,
+  chittagong: 0,
+  variants: (product.variants || []).map(variant => ({
+    ...variant,
+    id: createVariantId(),
+    dhaka: 0,
+    chittagong: 0
+  }))
+});
 
 const SortableProductRow = ({ p, canDrag, getProductSlabText, setEditingProduct, deleteProduct, handleDuplicate, handleToggleStatus, handleOpenPosition }: any) => {
   const {
@@ -336,12 +393,45 @@ const Products = () => {
 
   const handleSaveProduct = async () => {
     if (editingProduct && editingProduct.name) {
+      if ((editingProduct.variantGroups || []).some(group => !group.name.trim() || !group.options.length)) {
+        showError('Give every option group a name and at least one option, or remove the empty group.');
+        return;
+      }
+      const invalidVariant = (editingProduct.variants || []).some(variant =>
+        !Number.isFinite(Number(variant.price)) || Number(variant.price) < 0
+        || !Number.isInteger(Number(variant.dhaka)) || Number(variant.dhaka) < 0
+        || !Number.isInteger(Number(variant.chittagong)) || Number(variant.chittagong) < 0
+        || !Number.isFinite(Number(variant.commissionAdjustment))
+      );
+      if (invalidVariant) {
+        showError('Option prices and commission adjustments must be valid numbers; option stock must be zero or a positive whole number.');
+        return;
+      }
       const isNewProduct = !editingProduct.id;
+      const previousProduct = products.find(product => product.id === editingProduct.id);
+      if (previousProduct) {
+        const oldDhaka = (previousProduct.variants || []).reduce((sum, variant) => sum + (Number(variant.dhaka) || 0), 0);
+        const oldChittagong = (previousProduct.variants || []).reduce((sum, variant) => sum + (Number(variant.chittagong) || 0), 0);
+        const newDhaka = (editingProduct.variants || []).reduce((sum, variant) => sum + (Number(variant.dhaka) || 0), 0);
+        const newChittagong = (editingProduct.variants || []).reduce((sum, variant) => sum + (Number(variant.chittagong) || 0), 0);
+        if ((newDhaka < oldDhaka || newChittagong < oldChittagong)
+          && !confirm('This change reduces recorded option stock. Continue only if this stock was intentionally removed or reallocated.')) {
+          return;
+        }
+      }
       const initialDhaka = Number(editingProduct.dhaka || 0);
       const initialCtg = Number(editingProduct.chittagong || 0);
       const savedProduct = await api.saveProduct({
         ...editingProduct,
         variations: [...new Set((editingProduct.variations || []).map(value => value.trim()).filter(Boolean))],
+        variantGroups: (editingProduct.variantGroups || [])
+          .map(group => ({
+            ...group,
+            name: group.name.trim(),
+            options: [...new Set((group.options || []).map(option => option.trim()).filter(Boolean))]
+          }))
+          .filter(group => group.name),
+        variants: editingProduct.variants || [],
         dhaka: isNewProduct ? 0 : editingProduct.dhaka,
         chittagong: isNewProduct ? 0 : editingProduct.chittagong
       } as Product);
@@ -512,6 +602,59 @@ const Products = () => {
     if (!editingProduct) return;
     const variations = (Array.isArray(editingProduct.variations) ? editingProduct.variations : []).filter((_, i) => i !== index);
     setEditingProduct({ ...editingProduct, variations });
+  };
+
+  const updateVariantGroups = (variantGroups: ProductVariantGroup[]) => {
+    if (!editingProduct) return;
+    const variants = buildVariantCombinations(
+      variantGroups,
+      editingProduct.variants || [],
+      Number(editingProduct.retailPrice) || 0
+    );
+    setEditingProduct({ ...editingProduct, variantGroups, variants });
+  };
+
+  const addVariantGroup = () => {
+    const groups = editingProduct?.variantGroups || [];
+    updateVariantGroups([...groups, {
+      id: createVariantId(),
+      name: '',
+      options: []
+    }]);
+  };
+
+  const updateVariantGroupName = (index: number, name: string) => {
+    if (!editingProduct) return;
+    const groups = [...(editingProduct.variantGroups || [])];
+    groups[index] = { ...groups[index], name };
+    updateVariantGroups(groups);
+  };
+
+  const updateVariantGroupOptions = (index: number, value: string) => {
+    if (!editingProduct) return;
+    const groups = [...(editingProduct.variantGroups || [])];
+    groups[index] = {
+      ...groups[index],
+      options: [...new Set(value.split(',').map(option => option.trim()).filter(Boolean))]
+    };
+    updateVariantGroups(groups);
+  };
+
+  const removeVariantGroup = (index: number) => {
+    const groups = (editingProduct?.variantGroups || []).filter((_, groupIndex) => groupIndex !== index);
+    updateVariantGroups(groups);
+  };
+
+  const updateVariantField = (
+    variantId: string,
+    field: 'price' | 'dhaka' | 'chittagong' | 'commissionAdjustment',
+    value: number
+  ) => {
+    if (!editingProduct) return;
+    const variants = (editingProduct.variants || []).map(variant =>
+      variant.id === variantId ? { ...variant, [field]: value } : variant
+    );
+    setEditingProduct({ ...editingProduct, variants });
   };
 
   const handleSaveStockEntry = async () => {
@@ -816,7 +959,7 @@ const Products = () => {
               <Button variant="outline" onClick={() => setShowCategoryManager(true)} className="h-11 w-full sm:w-auto"><Tags className="w-4 h-4 mr-2" /> Categories</Button>
               <Button variant="outline" onClick={() => setShowStockEntryDialog(true)} className="h-11 w-full sm:w-auto"><Warehouse className="w-4 h-4 mr-2" /> Stock Entry</Button>
               <Button variant="outline" onClick={() => setShowStockTransferDialog(true)} className="h-11 w-full sm:w-auto"><ArrowRightLeft className="w-4 h-4 mr-2" /> Stock Transfer</Button>
-              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [], variantGroups: [], variants: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
             </div>
           </div>
           {isMobile && activeView === 'products' && (
@@ -852,7 +995,7 @@ const Products = () => {
                             getProductSlabText={getProductSlabText}
                             setEditingProduct={setEditingProduct}
                             deleteProduct={handleDeleteProduct}
-                            handleDuplicate={(prod: Product) => setEditingProduct({ ...prod, id: undefined, name: `${prod.name} (Copy)` })}
+                            handleDuplicate={(prod: Product) => setEditingProduct(duplicateProductForEdit(prod))}
                             handleToggleStatus={handleToggleProductStatus}
                             handleOpenPosition={handleOpenPosition}
                           />
@@ -883,7 +1026,7 @@ const Products = () => {
                                 getProductSlabText={getProductSlabText}
                                 setEditingProduct={setEditingProduct}
                                 deleteProduct={handleDeleteProduct}
-                                handleDuplicate={(prod: Product) => setEditingProduct({ ...prod, id: undefined, name: `${prod.name} (Copy)`})}
+                                handleDuplicate={(prod: Product) => setEditingProduct(duplicateProductForEdit(prod))}
                                 handleToggleStatus={handleToggleProductStatus}
                                 handleOpenPosition={handleOpenPosition}
                               />
@@ -1101,10 +1244,69 @@ const Products = () => {
                 </div>
               </div>
               <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Label>Product Options</Label>
+                    <p className="mt-1 text-xs text-slate-500">Add groups such as Color or Size. Separate options with commas. Option stock is a per-combination limit within the product's total branch stock.</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={addVariantGroup}>
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add Group
+                  </Button>
+                </div>
+                {(editingProduct?.variantGroups || []).map((group, index) => (
+                  <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-2" key={group.id}>
+                    <Input
+                      value={group.name}
+                      onChange={e => updateVariantGroupName(index, e.target.value)}
+                      placeholder="Group (e.g. Color)"
+                      aria-label={`Option group ${index + 1} name`}
+                    />
+                    <Input
+                      value={(group.options || []).join(', ')}
+                      onChange={e => updateVariantGroupOptions(index, e.target.value)}
+                      placeholder="Options (e.g. Red, Blue)"
+                      aria-label={`Options for ${group.name || `group ${index + 1}`}`}
+                    />
+                    <Button type="button" variant="ghost" size="icon" className="text-red-400" onClick={() => removeVariantGroup(index)} aria-label={`Remove option group ${index + 1}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {(editingProduct?.variants || []).length > 0
+                  && (editingProduct?.variantGroups || []).every(group => group.name.trim() && group.options.length > 0) && (
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs text-slate-500">Each combination has its own price, branch stock and commission adjustment. New groups start with zero stock; removing a group combines its stock. Review prices and stock when changing options.</p>
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[580px]">
+                        <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(4,minmax(70px,1fr))] gap-2 px-1 text-[10px] font-bold uppercase text-slate-500">
+                          <span>Combination</span><span>Price</span><span>Dhaka Qty</span><span>CTG Qty</span><span>Secondary Comm.</span>
+                        </div>
+                        <div className="max-h-56 space-y-2 overflow-y-auto">
+                          {(editingProduct?.variants || []).map(variant => (
+                            <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center gap-2" key={variant.id}>
+                              <span className="break-words text-xs font-semibold">
+                                {(editingProduct?.variantGroups || [])
+                                  .map(group => `${group.name}: ${variant.attributes[group.id]}`)
+                                  .join(' / ')}
+                              </span>
+                              <Input type="number" min="0" value={variant.price} onChange={e => updateVariantField(variant.id, 'price', Number(e.target.value))} aria-label={`Price for ${variant.id}`} />
+                              <Input type="number" min="0" value={variant.dhaka} onChange={e => updateVariantField(variant.id, 'dhaka', Number(e.target.value))} aria-label={`Dhaka quantity for ${variant.id}`} />
+                              <Input type="number" min="0" value={variant.chittagong} onChange={e => updateVariantField(variant.id, 'chittagong', Number(e.target.value))} aria-label={`Chittagong quantity for ${variant.id}`} />
+                              <Input type="number" value={variant.commissionAdjustment} onChange={e => updateVariantField(variant.id, 'commissionAdjustment', Number(e.target.value))} aria-label={`Secondary commission adjustment for ${variant.id}`} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Secondary commission is per unit: positive adds to the main commission; negative subtracts from it. Total commission cannot go below zero.</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3 rounded-lg border p-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label>Order Variations</Label>
-                    <p className="mt-1 text-xs text-slate-500">Optional choices available when adding this product to an order.</p>
+                    <Label>Legacy Text Variations</Label>
+                    <p className="mt-1 text-xs text-slate-500">Existing text-only choices, retained for older products and orders.</p>
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={addVariation}>
                     <Plus className="mr-1 h-3.5 w-3.5" /> Add Variation

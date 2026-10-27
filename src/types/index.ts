@@ -51,7 +51,24 @@ export interface Product {
   chittagong: number;
   slabs: Slab[];
   variations?: string[];
+  variantGroups?: ProductVariantGroup[];
+  variants?: ProductVariant[];
   sortOrder?: number;
+}
+
+export interface ProductVariantGroup {
+  id: string;
+  name: string;
+  options: string[];
+}
+
+export interface ProductVariant {
+  id: string;
+  attributes: Record<string, string>;
+  dhaka: number;
+  chittagong: number;
+  price: number;
+  commissionAdjustment: number;
 }
 
 export interface ProductStockEntry {
@@ -83,6 +100,9 @@ export interface OrderItem {
   productName: string;
   version: string;
   variation?: string;
+  variantId?: string;
+  variantAttributes?: Record<string, string>;
+  commissionAdjustment?: number;
   quantity: number;
   basePrice?: number;
   price: number;

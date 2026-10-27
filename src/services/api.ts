@@ -253,6 +253,8 @@ const getRemote = async <T>(key: string, def: T): Promise<T> => {
         chittagong: row.chittagong,
         slabs: row.slabs || [],
         variations: row.variations || [],
+        variantGroups: row.variant_groups || [],
+        variants: row.variants || [],
         sortOrder: row.sort_order
       }));
       // Sort products by sortOrder
@@ -524,6 +526,8 @@ const pushRemote = async (key: string, item: any) => {
         chittagong: item.chittagong,
         slabs: item.slabs || [],
         variations: item.variations || [],
+        variant_groups: item.variantGroups || [],
+        variants: item.variants || [],
         sort_order: item.sortOrder
       };
     } else if (key === KEYS.DEALERS) {
@@ -651,6 +655,35 @@ const pushRemote = async (key: string, item: any) => {
   if (writeError) {
     // Surface as re-throw so callers can toast a DB error to the user.
     throw writeError;
+  }
+};
+
+const applyVariantStockDeltas = async (deltas: Array<{
+  productId: string;
+  variantId: string;
+  location: 'dhaka' | 'chittagong';
+  quantity: number;
+}>) => {
+  const nonZeroDeltas = deltas.filter(delta => delta.quantity !== 0);
+  if (!nonZeroDeltas.length) return;
+
+  const products = await getRemote<Product[]>(KEYS.PRODUCTS, []);
+  const productsToSave = new Map<string, Product>();
+  nonZeroDeltas.forEach(delta => {
+    const product = productsToSave.get(delta.productId)
+      || products.find(candidate => candidate.id === delta.productId);
+    const variant = product?.variants?.find(candidate => candidate.id === delta.variantId);
+    if (!product || !variant) return;
+    const updatedProduct = productsToSave.get(delta.productId) || { ...product };
+    updatedProduct.variants = (updatedProduct.variants || []).map(candidate =>
+      candidate.id === delta.variantId
+        ? { ...candidate, [delta.location]: (Number(candidate[delta.location]) || 0) + delta.quantity }
+        : candidate
+    );
+    productsToSave.set(delta.productId, updatedProduct);
+  });
+  for (const product of productsToSave.values()) {
+    await pushRemote(KEYS.PRODUCTS, product);
   }
 };
 
@@ -927,6 +960,38 @@ export const api = {
 
     // 2. Handle Stock Sync (only when approved)
     await pushRemote(KEYS.ORDERS, order);
+
+    const oldOrderAffectsVariantStock = !!existing && existing.status === 'approved' && !existing.isQuote;
+    const newOrderAffectsVariantStock = order.status === 'approved' && !order.isQuote;
+    if (oldOrderAffectsVariantStock || newOrderAffectsVariantStock) {
+      const variantStockDeltas = new Map<string, {
+        productId: string;
+        variantId: string;
+        location: 'dhaka' | 'chittagong';
+        quantity: number;
+      }>();
+      const addVariantDelta = (item: Order['items'][number], quantity: number) => {
+        if (!item.variantId || !item.productId) return;
+        const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
+        const key = `${item.productId}:${item.variantId}:${location}`;
+        const current = variantStockDeltas.get(key);
+        variantStockDeltas.set(key, {
+          productId: item.productId,
+          variantId: item.variantId,
+          location,
+          quantity: (current?.quantity || 0) + quantity
+        });
+      };
+
+      if (oldOrderAffectsVariantStock) {
+        (existing.items || []).forEach(item => addVariantDelta(item, Number(item.quantity) || 0));
+      }
+      if (newOrderAffectsVariantStock) {
+        (order.items || []).forEach(item => addVariantDelta(item, -(Number(item.quantity) || 0)));
+      }
+
+      await applyVariantStockDeltas([...variantStockDeltas.values()]);
+    }
     
     // Sync stock for all products in current and previous order state
     const productIdsToSync = new Set<string>();
@@ -980,6 +1045,15 @@ export const api = {
 
       // 2. Revert Stock
       await removeRemote(KEYS.ORDERS, id);
+
+      if (order.status === 'approved' && !order.isQuote) {
+        await applyVariantStockDeltas((order.items || []).map(item => ({
+          productId: item.productId,
+          variantId: item.variantId || '',
+          location: item.location === 'dhaka' ? 'dhaka' : 'chittagong',
+          quantity: Number(item.quantity) || 0
+        })));
+      }
       
       // Update local storage immediately so syncProductStock sees the deletion
       const currentOrders = get<Order[]>(KEYS.ORDERS, []);

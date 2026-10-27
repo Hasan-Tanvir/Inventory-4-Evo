@@ -30,6 +30,8 @@ create table if not exists public.products (
   chittagong integer not null default 0,
   slabs jsonb not null default '[]'::jsonb,
   variations jsonb not null default '[]'::jsonb,
+  variant_groups jsonb not null default '[]'::jsonb,
+  variants jsonb not null default '[]'::jsonb,
   sort_order integer,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())

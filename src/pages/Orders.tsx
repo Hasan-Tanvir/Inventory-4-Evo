@@ -660,8 +660,9 @@ const Orders = () => {
     // Check product name in items
     const matchesProduct = !productSearch.trim() || 
       (o && o.items && Array.isArray(o.items) && o.items.some(item => 
-        item.productName && item.productName.toLowerCase().includes(productSearch.toLowerCase())
-      ));
+         (item.productName && item.productName.toLowerCase().includes(productSearch.toLowerCase()))
+         || (item.variation && item.variation.toLowerCase().includes(productSearch.toLowerCase()))
+       ));
 
     return matchesCustomer && matchesProduct;
   });
@@ -1251,6 +1252,7 @@ const Orders = () => {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="font-semibold text-slate-900 text-sm truncate">{it.productName || it.productId}{it.version ? ` ${it.version}` : ''}</div>
+                              {it.variation && <div className="text-[11px] text-slate-500 truncate">{it.variation}</div>}
                               <div className="text-[12px] text-slate-600">Qty {it.quantity} · Price {Number(it.price || 0).toLocaleString('en-IN')}</div>
                             </div>
                             <div className="text-right font-black text-slate-900 text-sm">{Number(it.total || (it.quantity * (it.price || 0))).toLocaleString('en-IN')}</div>

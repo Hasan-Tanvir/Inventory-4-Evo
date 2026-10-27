@@ -101,6 +101,23 @@ interface Product {
   dhaka: number       // Stock in Dhaka warehouse
   chittagong: number  // Stock in Chittagong warehouse
   slabs: Slab[]       // Bulk pricing tiers
+  variantGroups?: ProductVariantGroup[]  // E.g. Color and Size
+  variants?: ProductVariant[]            // One row per option combination
+}
+
+interface ProductVariantGroup {
+  id: string
+  name: string
+  options: string[]
+}
+
+interface ProductVariant {
+  id: string
+  attributes: Record<string, string>
+  dhaka: number
+  chittagong: number
+  price: number
+  commissionAdjustment: number // Signed per-unit change to the product commission
 }
 
 interface Slab {
@@ -144,6 +161,10 @@ interface OrderItem {
   productId: string
   productName: string
   version: string
+  variation?: string            // Invoice snapshot, e.g. Color: Red / Size: M
+  variantId?: string
+  variantAttributes?: Record<string, string>
+  commissionAdjustment?: number
   quantity: number
   basePrice?: number
   price: number
@@ -153,6 +174,10 @@ interface OrderItem {
   serialNumbers: string[]
 }
 ```
+
+Variant groups and combinations are stored as JSONB columns on `products`. Option stock is tracked separately for Dhaka and Chittagong, and approved orders consume the selected combination's stock. Order items keep a snapshot of the selected combination and the calculated commission so later product edits do not rewrite historical invoices.
+
+The existing text-only `variations` field remains for legacy products and orders.
 
 #### **Commission & Target System**
 ```typescript
