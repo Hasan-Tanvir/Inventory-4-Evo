@@ -317,7 +317,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
         <div className="relative">
           <div className="flex items-center justify-between mb-1.5 gap-2">
             <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Product Description</label>
-            {selectedProduct && (
+            {selectedProduct && !selectedProduct.variantGroups?.length && (
               <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
             )}
           </div>
@@ -345,7 +345,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                   className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                    {!product.variantGroups?.length && (
+                      <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="whitespace-normal break-words font-bold leading-snug text-slate-900">{product.name}</div>
                       {product.version && <div className="whitespace-normal break-words text-[10px] text-slate-500 uppercase font-black">{product.version}</div>}
@@ -414,7 +416,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
       <div className="md:hidden space-y-2">
         <div className="flex items-center justify-between gap-2 px-0.5">
           <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Product</span>
-          {selectedProduct && (
+          {selectedProduct && !selectedProduct.variantGroups?.length && (
             <StockBadge dhaka={selectedProduct.dhaka || 0} chittagong={selectedProduct.chittagong || 0} />
           )}
         </div>
@@ -448,7 +450,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                   className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 whitespace-normal break-words"
                 >
                   <div className="flex items-start gap-2">
-                    <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                    {!product.variantGroups?.length && (
+                      <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="whitespace-normal break-words font-medium leading-snug">{product.name}</div>
                       {product.version && <div className="whitespace-normal break-words text-xs text-slate-500">{product.version}</div>}
@@ -998,15 +1002,16 @@ export default function NewOrder() {
         const product = allProducts.find(p => p.id === item.productId);
         if (product) {
           const location = inventorySource === 'mixed' ? item.location : inventorySource;
-          const baseKey = `${product.id}:${location}`;
-          const baseRequirement = baseRequirements.get(baseKey);
-          baseRequirements.set(baseKey, {
-            product,
-            location,
-            quantity: (baseRequirement?.quantity || 0) + (Number(item.quantity) || 0)
-          });
-
           const itemSelections = item.variantSelections || [];
+          if (!product.variantGroups?.length && !itemSelections.length && !item.variantId) {
+            const baseKey = `${product.id}:${location}`;
+            const baseRequirement = baseRequirements.get(baseKey);
+            baseRequirements.set(baseKey, {
+              product,
+              location,
+              quantity: (baseRequirement?.quantity || 0) + (Number(item.quantity) || 0)
+            });
+          }
           if (product.variantGroups?.length && !itemSelections.length && !item.variantId) {
             const unchangedLegacyItem = originalOrder?.items.some(originalItem =>
               originalItem.productId === item.productId
@@ -1159,14 +1164,16 @@ export default function NewOrder() {
     for (const item of order.items) {
       const product = allProducts.find(p => p.id === item.productId);
       if (product) {
-        const baseKey = `${product.id}:${item.location}`;
-        const currentBase = baseQuantities.get(baseKey);
-        baseQuantities.set(baseKey, {
-          product,
-          location: item.location,
-          quantity: (currentBase?.quantity || 0) + (Number(item.quantity) || 0)
-        });
         const itemSelections = item.variantSelections || [];
+        if (!product.variantGroups?.length && !itemSelections.length && !item.variantId) {
+          const baseKey = `${product.id}:${item.location}`;
+          const currentBase = baseQuantities.get(baseKey);
+          baseQuantities.set(baseKey, {
+            product,
+            location: item.location,
+            quantity: (currentBase?.quantity || 0) + (Number(item.quantity) || 0)
+          });
+        }
         if (product.variantGroups?.length && !itemSelections.length && !item.variantId) {
           return showError(`Select all options for "${item.productName}" before downloading the quote.`);
         }

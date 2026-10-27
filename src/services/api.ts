@@ -798,7 +798,7 @@ export const api = {
     // 3. Subtract Approved Orders
     pOrders.forEach(o => {
       o.items.forEach(item => {
-        if (item && item.productId === productId) {
+        if (item && item.productId === productId && !item.variantSelections?.length && !item.variantId) {
           const qty = Number(item.quantity) || 0;
           const loc = (item.location || o.inventorySource || 'chittagong').toLowerCase();
           if (loc === 'dhaka') dhaka -= qty;
