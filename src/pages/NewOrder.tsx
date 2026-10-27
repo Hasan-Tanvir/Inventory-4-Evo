@@ -38,6 +38,17 @@ const emptyItem = () => ({
 });
 
 type OrderItemRow = ReturnType<typeof emptyItem>;
+type OrderType = 'dealer' | 'retail';
+
+const getProductBasePrice = (product: Product, orderType: OrderType, quantity: number) => {
+  if (orderType === 'retail') return Number(product.retailPrice) || 0;
+  const slab = (product.slabs || []).find(candidate => quantity >= candidate.min && quantity <= candidate.max);
+  return slab ? Number(slab.price) || 0 : Number(product.dealerPrice) || 0;
+};
+
+const getVariantOptionPrice = (variant: ProductVariant, orderType: OrderType) => orderType === 'retail'
+  ? Number(variant.retailPrice ?? variant.price) || 0
+  : Number(variant.dealerPrice ?? variant.price) || 0;
 
 const summarizeVariantSelections = (
   item: OrderItemRow,
@@ -73,7 +84,8 @@ const summarizeVariantSelections = (
 const createVariantSelection = (
   product: Product,
   variant: ProductVariant,
-  quantity = 1
+  quantity = 1,
+  orderType: OrderType = 'dealer'
 ): ProductVariantSelection => ({
   variantId: variant.id,
   attributes: { ...variant.attributes },
@@ -81,7 +93,7 @@ const createVariantSelection = (
     .map(([, option]) => option)
     .join(' '),
   quantity,
-  price: Number(variant.price) || 0,
+  price: getVariantOptionPrice(variant, orderType),
   commission: Math.max(0, (Number(product.commission) || 0) + (Number(variant.commissionAdjustment) || 0)) * quantity,
   commissionAdjustment: Number(variant.commissionAdjustment) || 0
 });
@@ -788,9 +800,11 @@ export default function NewOrder() {
       const variant = product?.variants?.find(candidate => candidate.id === item.variantId);
       const savedUnitPrice = Number(item.price) || 0;
       const savedBasePrice = Number(item.basePrice);
-      const basePrice = Number.isFinite(savedBasePrice) && item.basePrice !== undefined
+      const basePrice = item.basePrice !== undefined
         ? savedBasePrice
-        : Math.min(Number(product?.retailPrice) || savedUnitPrice, savedUnitPrice);
+        : product
+          ? getProductBasePrice(product, ord.type || 'dealer', Number(item.quantity) || 1)
+          : savedUnitPrice;
       let variantSelections = item.variantSelections?.length
         ? item.variantSelections.map(selection => ({
             ...selection,
@@ -802,8 +816,8 @@ export default function NewOrder() {
           }))
         : variant
           ? [{
-              ...createVariantSelection(product!, variant, item.quantity || 1),
-              price: Math.max(0, (Number(item.price) || Number(variant.price) || 0) - basePrice),
+              ...createVariantSelection(product!, variant, item.quantity || 1, ord.type || 'dealer'),
+              price: Math.max(0, (Number(item.price) || 0) - basePrice),
               commission: Number(item.commission) || 0,
               commissionAdjustment: Number(item.commissionAdjustment ?? variant.commissionAdjustment) || 0
             }]
@@ -823,7 +837,9 @@ export default function NewOrder() {
           }));
         }
       }
-      const retailPrice = product?.retailPrice ?? (item.basePrice || item.price || 0);
+      const catalogBasePrice = product
+        ? getProductBasePrice(product, ord.type || 'dealer', Number(item.quantity) || 1)
+        : item.basePrice || item.price || 0;
       const commissionPerUnit = variant
         ? Math.max(0, (Number(product?.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
         : product && !item.variantId
@@ -848,7 +864,7 @@ export default function NewOrder() {
         serials: (Array.isArray(item.serialNumbers) ? item.serialNumbers : []).join(', '),
         basePrice,
         baseCommissionPerUnit: commissionPerUnit,
-        priceIncrease: Math.max(0, (item.price || 0) - retailPrice),
+        priceIncrease: Math.max(0, (item.price || 0) - catalogBasePrice),
       };
       return product?.variantGroups?.length
         ? summarizeVariantSelections(row, product, variantSelections)
@@ -917,13 +933,8 @@ export default function NewOrder() {
           updated.productName = product.name;
           updated.version = product.version || '';
           const qty = Number(updated.quantity) || 1;
-          if (orderType === 'retail') {
-            updated.price = product.retailPrice || 0;
-          } else {
-            const slab = (Array.isArray(product.slabs) ? product.slabs : []).find(s => s && qty >= s.min && qty <= s.max);
-            updated.price = slab ? slab.price : product.retailPrice || 0;
-          }
-          updated.basePrice = product.variantGroups?.length ? updated.price : product.retailPrice;
+          updated.price = getProductBasePrice(product, orderType, qty);
+          updated.basePrice = updated.price;
           updated.baseCommissionPerUnit = product.commission || 0;
           updated.total = qty * updated.price;
           updated.commission = (product.commission || 0) * qty;
@@ -940,7 +951,7 @@ export default function NewOrder() {
           const optionPrice = (updated.variantSelections || []).reduce((sum, selection) => sum + (Number(selection.price) || 0), 0);
           const basePrice = field === 'price'
             ? Math.max(0, (Number(value) || 0) - optionPrice)
-            : Number(updated.basePrice) || 0;
+            : getProductBasePrice(product, orderType, qty);
           const selectionQuantity = Math.max(1, qty);
           const selections = (updated.variantSelections || []).map(selection => ({
             ...selection,
@@ -959,16 +970,12 @@ export default function NewOrder() {
         }
         const variant = product?.variants?.find(candidate => candidate.id === updated.variantId);
         if (variant) {
-          price = Number(variant.price) || 0;
+          price = getVariantOptionPrice(variant, orderType);
           updated.price = price;
-        } else if (field === 'quantity' && orderType === 'dealer' && !product?.variantGroups?.length) {
-          if (product) {
-            const slab = (Array.isArray(product.slabs) ? product.slabs : []).find(s => s && qty >= s.min && qty <= s.max);
-            if (slab) {
-              price = slab.price;
-              updated.price = slab.price;
-            }
-          }
+        } else if (field === 'quantity' && product) {
+          price = getProductBasePrice(product, orderType, qty);
+          updated.price = price;
+          updated.basePrice = price;
         }
         updated.total = qty * price;
         const priceIncrease = Math.max(0, price - (updated.basePrice || 0));
@@ -1003,12 +1010,12 @@ export default function NewOrder() {
       const currentSelections = (item.variantSelections || []).filter(selection =>
         !combinationGroupIds.some(combinationGroupId => selection.attributes[combinationGroupId])
       );
-      if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1));
+      if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1, orderType));
       const updated = summarizeVariantSelections(item, product, currentSelections);
       return {
         ...updated,
         variantAttributes,
-        basePrice: Number(item.basePrice) || product.retailPrice || 0,
+        basePrice: Number(item.basePrice) || getProductBasePrice(product, orderType, Number(item.quantity) || 1),
         priceIncrease: 0
       };
     }));
@@ -1023,8 +1030,35 @@ export default function NewOrder() {
         !selection.attributes[groupId]
       );
       const variant = product.variants?.find(candidate => candidate.id === variantId);
-      if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1));
+      if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1, orderType));
       return summarizeVariantSelections(item, product, currentSelections);
+    }));
+  };
+
+  const changeOrderType = (nextType: OrderType) => {
+    setOrderType(nextType);
+    setItems(prev => prev.map(item => {
+      const product = products.find(candidate => candidate.id === item.productId);
+      if (!product) return item;
+      const basePrice = getProductBasePrice(product, nextType, Number(item.quantity) || 1);
+      if (product.variantGroups?.length) {
+        const selections = (item.variantSelections || []).map(selection => {
+          const variant = product.variants?.find(candidate => candidate.id === selection.variantId);
+          return variant
+            ? createVariantSelection(product, variant, Number(item.quantity) || 1, nextType)
+            : { ...selection, quantity: Number(item.quantity) || 1 };
+        });
+        return summarizeVariantSelections({ ...item, basePrice }, product, selections);
+      }
+      const variant = product.variants?.find(candidate => candidate.id === item.variantId);
+      const price = variant ? getVariantOptionPrice(variant, nextType) : basePrice;
+      return {
+        ...item,
+        basePrice,
+        price,
+        total: (Number(item.quantity) || 0) * price,
+        priceIncrease: Math.max(0, price - basePrice)
+      };
     }));
   };
 
@@ -1474,7 +1508,7 @@ export default function NewOrder() {
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Type</label>
-                      <select value={orderType} onChange={e => setOrderType(e.target.value as any)} className="w-full border border-slate-300 bg-slate-50 px-3 py-2 text-sm rounded-lg outline-none">
+                      <select value={orderType} onChange={e => changeOrderType(e.target.value as OrderType)} className="w-full border border-slate-300 bg-slate-50 px-3 py-2 text-sm rounded-lg outline-none">
                         <option value="dealer">Dealer</option>
                         {(!isMember || (editOrderId && originalOrderType === 'retail')) && <option value="retail">Retail</option>}
                       </select>

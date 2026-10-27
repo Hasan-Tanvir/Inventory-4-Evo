@@ -45,6 +45,7 @@ export interface Product {
   version: string;
   categoryId: string;
   retailPrice: number;
+  dealerPrice?: number;
   commission: number;
   status: 'active' | 'inactive';
   dhaka: number;
@@ -68,7 +69,9 @@ export interface ProductVariant {
   attributes: Record<string, string>;
   dhaka: number;
   chittagong: number;
-  price: number;
+  dealerPrice?: number;
+  retailPrice?: number;
+  price?: number;
   commissionAdjustment: number;
 }
 

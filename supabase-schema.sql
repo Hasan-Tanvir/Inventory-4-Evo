@@ -24,6 +24,7 @@ create table if not exists public.products (
   version text,
   category_id text,
   retail_price numeric not null default 0,
+  dealer_price numeric not null default 0,
   commission numeric not null default 0,
   status text not null default 'active',
   dhaka integer not null default 0,

@@ -125,7 +125,8 @@ const buildVariantCombinations = (
       attributes,
       dhaka: Number(existing?.dhaka) || 0,
       chittagong: Number(existing?.chittagong) || 0,
-      price: existing ? Number(existing.price) || 0 : 0,
+      dealerPrice: Number(existing?.dealerPrice ?? existing?.price) || 0,
+      retailPrice: Number(existing?.retailPrice ?? existing?.price) || 0,
       commissionAdjustment: existing ? Number(existing.commissionAdjustment) || 0 : 0
     };
   });
@@ -177,7 +178,7 @@ const SortableProductRow = ({ p, canDrag, getProductSlabText, setEditingProduct,
         </Badge>
       </TableCell>
       <TableCell className="text-xs">
-        <div>Retail: {p.retailPrice}</div>
+        <div>Dealer: {p.dealerPrice || 0} · Retail: {p.retailPrice}</div>
         <div>Commission/Unit: {p.commission || 0}</div>
         <div className="text-slate-500 truncate max-w-[280px]" title={getProductSlabText(p.id)}>
           Slabs: {getProductSlabText(p.id)}
@@ -247,7 +248,7 @@ const ProductCard = ({ p, canDrag, getProductSlabText, setEditingProduct, delete
           </div>
         </div>
         <div className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black tracking-tight border border-blue-100 shrink-0">
-          Retail: {p.retailPrice}
+          Dealer: {p.dealerPrice || 0} · Retail: {p.retailPrice}
         </div>
       </div>
 
@@ -403,12 +404,18 @@ const Products = () => {
 
   const handleSaveProduct = async () => {
     if (editingProduct && editingProduct.name) {
+      if (!Number.isFinite(Number(editingProduct.dealerPrice ?? 0)) || Number(editingProduct.dealerPrice ?? 0) < 0
+        || !Number.isFinite(Number(editingProduct.retailPrice)) || Number(editingProduct.retailPrice) < 0) {
+        showError('Dealer and retail prices must be valid non-negative numbers.');
+        return;
+      }
       if ((editingProduct.variantGroups || []).some(group => !group.name.trim() || !group.options.length)) {
         showError('Give every option group a name and at least one option, or remove the empty group.');
         return;
       }
       const invalidVariant = (editingProduct.variants || []).some(variant =>
-        !Number.isFinite(Number(variant.price)) || Number(variant.price) < 0
+        !Number.isFinite(Number(variant.dealerPrice ?? variant.price)) || Number(variant.dealerPrice ?? variant.price) < 0
+        || !Number.isFinite(Number(variant.retailPrice ?? variant.price)) || Number(variant.retailPrice ?? variant.price) < 0
         || !Number.isInteger(Number(variant.dhaka)) || Number(variant.dhaka) < 0
         || !Number.isInteger(Number(variant.chittagong)) || Number(variant.chittagong) < 0
         || !Number.isFinite(Number(variant.commissionAdjustment))
@@ -432,7 +439,8 @@ const Products = () => {
           && (
             (Number(variant.dhaka) || 0) > 0
             || (Number(variant.chittagong) || 0) > 0
-            || (Number(variant.price) || 0) !== (Number(previousProduct.retailPrice) || 0)
+            || (Number(variant.dealerPrice ?? variant.price) || 0) > 0
+            || (Number(variant.retailPrice ?? variant.price) || 0) > 0
             || (Number(variant.commissionAdjustment) || 0) !== 0
           )
         );
@@ -445,6 +453,7 @@ const Products = () => {
       const initialCtg = Number(editingProduct.chittagong || 0);
       const savedProduct = await api.saveProduct({
         ...editingProduct,
+        dealerPrice: Number(editingProduct.dealerPrice) || 0,
         variations: [...new Set((editingProduct.variations || []).map(value => value.trim()).filter(Boolean))],
         variantGroups: (editingProduct.variantGroups || [])
           .map(group => ({
@@ -694,7 +703,7 @@ const Products = () => {
 
   const updateVariantField = (
     variantId: string,
-    field: 'price' | 'dhaka' | 'chittagong' | 'commissionAdjustment',
+    field: 'dealerPrice' | 'retailPrice' | 'dhaka' | 'chittagong' | 'commissionAdjustment',
     value: number
   ) => {
     if (!editingProduct) return;
@@ -1019,7 +1028,7 @@ const Products = () => {
               <Button variant="outline" onClick={() => setShowCategoryManager(true)} className="h-11 w-full sm:w-auto"><Tags className="w-4 h-4 mr-2" /> Categories</Button>
               <Button variant="outline" onClick={() => setShowStockEntryDialog(true)} className="h-11 w-full sm:w-auto"><Warehouse className="w-4 h-4 mr-2" /> Stock Entry</Button>
               <Button variant="outline" onClick={() => setShowStockTransferDialog(true)} className="h-11 w-full sm:w-auto"><ArrowRightLeft className="w-4 h-4 mr-2" /> Stock Transfer</Button>
-              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [], variantGroups: [], variants: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', dealerPrice: 0, retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [], variantGroups: [], variants: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
             </div>
           </div>
           {isMobile && activeView === 'products' && (
@@ -1246,10 +1255,14 @@ const Products = () => {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+                <div className="space-y-2">
+                  <Label>Dealer Price</Label>
+                  <Input type="number" min="0" value={editingProduct?.dealerPrice || 0} onChange={e => setEditingProduct({...editingProduct, dealerPrice: Number(e.target.value)})} />
+                </div>
                 <div className="space-y-2">
                   <Label>Retail Price</Label>
-                  <Input type="number" value={editingProduct?.retailPrice || 0} onChange={e => setEditingProduct({...editingProduct, retailPrice: Number(e.target.value)})} />
+                  <Input type="number" min="0" value={editingProduct?.retailPrice || 0} onChange={e => setEditingProduct({...editingProduct, retailPrice: Number(e.target.value)})} />
                 </div>
                 <div className="space-y-2">
                   <Label>Commission / Unit</Label>
@@ -1284,7 +1297,7 @@ const Products = () => {
                   </Button>
                 </div>
                 {(editingProduct?.slabs || []).length === 0 && (
-                  <p className="text-xs text-slate-500">No slabs added. Dealer orders will use retail price.</p>
+                  <p className="text-xs text-slate-500">No slabs added. Dealer orders will use the base dealer price above.</p>
                 )}
                 <div className="space-y-2">
                   {/* Header Row */}
@@ -1353,15 +1366,15 @@ const Products = () => {
                 {(editingProduct?.variants || []).length > 0
                   && (editingProduct?.variantGroups || []).every(group => group.name.trim() && group.options.length > 0) && (
                   <div className="space-y-2 border-t pt-3">
-                    <p className="text-xs text-slate-500">Independent options are separate selections; unchecked groups combine with each other. Each option has its own price, branch stock and commission adjustment. Changing a group’s mode may reset option values, so review prices, stock and commission.</p>
+                    <p className="text-xs text-slate-500">Independent options are separate selections; unchecked groups combine with each other. Each option has separate dealer and retail add-on prices, branch stock and commission adjustment. Changing a group’s mode may reset option values, so review prices, stock and commission.</p>
                     <div className="overflow-x-auto">
-                      <div className="min-w-[580px]">
-                        <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(4,minmax(70px,1fr))] gap-2 px-1 text-[10px] font-bold uppercase text-slate-500">
-                          <span>Option / Combination</span><span>Price</span><span>Dhaka Qty</span><span>CTG Qty</span><span>Secondary Comm.</span>
+                      <div className="min-w-[700px]">
+                        <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(5,minmax(70px,1fr))] gap-2 px-1 text-[10px] font-bold uppercase text-slate-500">
+                          <span>Option / Combination</span><span>Dealer Add-on</span><span>Retail Add-on</span><span>Dhaka Qty</span><span>CTG Qty</span><span>Secondary Comm.</span>
                         </div>
                         <div className="max-h-56 space-y-2 overflow-y-auto">
                           {(editingProduct?.variants || []).map(variant => (
-                            <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center gap-2" key={variant.id}>
+                            <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(5,minmax(70px,1fr))] items-center gap-2" key={variant.id}>
                               <span className="break-words text-xs font-semibold">
                                 {Object.entries(variant.attributes || {})
                                   .map(([groupId, option]) => {
@@ -1371,7 +1384,8 @@ const Products = () => {
                                   .filter(Boolean)
                                   .join(' / ')}
                               </span>
-                              <Input type="number" min="0" value={variant.price} onChange={e => updateVariantField(variant.id, 'price', Number(e.target.value))} aria-label={`Price for ${variant.id}`} />
+                              <Input type="number" min="0" value={variant.dealerPrice ?? variant.price ?? 0} onChange={e => updateVariantField(variant.id, 'dealerPrice', Number(e.target.value))} aria-label={`Dealer add-on price for ${variant.id}`} />
+                              <Input type="number" min="0" value={variant.retailPrice ?? variant.price ?? 0} onChange={e => updateVariantField(variant.id, 'retailPrice', Number(e.target.value))} aria-label={`Retail add-on price for ${variant.id}`} />
                               <Input type="number" min="0" value={variant.dhaka} onChange={e => updateVariantField(variant.id, 'dhaka', Number(e.target.value))} aria-label={`Dhaka quantity for ${variant.id}`} />
                               <Input type="number" min="0" value={variant.chittagong} onChange={e => updateVariantField(variant.id, 'chittagong', Number(e.target.value))} aria-label={`Chittagong quantity for ${variant.id}`} />
                               <Input type="number" value={variant.commissionAdjustment} onChange={e => updateVariantField(variant.id, 'commissionAdjustment', Number(e.target.value))} aria-label={`Secondary commission adjustment for ${variant.id}`} />
