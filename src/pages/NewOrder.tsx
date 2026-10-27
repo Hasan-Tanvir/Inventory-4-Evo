@@ -92,7 +92,7 @@ interface SortableItemProps {
   inventorySource: 'dhaka' | 'chittagong' | 'mixed';
   updateItem: (index: number, field: keyof OrderItemRow, value: string | number) => void;
   updateVariantAttribute: (index: number, groupId: string, value: string) => void;
-  updateIndependentVariant: (index: number, variant: ProductVariant, selected: boolean) => void;
+  updateIndependentVariant: (index: number, groupId: string, variantId: string) => void;
   updateVariantSelectionQuantity: (index: number, variantId: string, quantity: number) => void;
   removeItem: (index: number) => void;
   addItem: () => void;
@@ -158,44 +158,52 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
   const renderVariantSelectors = (compact: boolean) => variantGroups.length
     ? (
       <div className="space-y-2">
-        {independentGroups.map(group => (
-          <div className="rounded-lg border border-slate-100 p-2" key={group.id}>
-            <label className="block text-[9px] font-bold text-slate-500">{group.name} · Select independently</label>
-            <div className="mt-1 space-y-1">
-              {group.options.map(option => {
-                const variant = selectedProduct?.variants?.find(candidate =>
-                  Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === option
-                );
-                const selection = selectedVariants.find(selected => selected.variantId === variant?.id);
-                return (
-                  <div className="flex items-center gap-2 text-xs" key={option}>
-                    <input
-                      type="checkbox"
-                      checked={!!selection}
-                      disabled={!variant}
-                      onChange={e => variant && updateIndependentVariant(index, variant, e.target.checked)}
-                      aria-label={`Select ${group.name} ${option}`}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{option}</span>
-                    <span className="text-[10px] text-slate-500">
-                      {variant?.price ?? 0} · Stock {variant?.[inventorySource === 'mixed' ? item.location : inventorySource] ?? 0}
-                    </span>
-                    {selection && (
-                      <input
-                        type="number"
-                        min="1"
-                        value={selection.quantity}
-                        onChange={e => variant && updateVariantSelectionQuantity(index, variant.id, Number(e.target.value))}
-                        className={cn("w-14 rounded border border-slate-200 px-1 py-1 text-right", compact ? "text-xs" : "text-sm")}
-                        aria-label={`Quantity for ${group.name} ${option}`}
-                      />
-                    )}
-                  </div>
-                );
-              })}
+        {independentGroups.map(group => {
+          const selection = selectedVariants.find(candidate => candidate.attributes[group.id]);
+          return (
+            <div className="flex items-center gap-1.5" key={group.id}>
+              <label className="w-16 shrink-0 truncate text-[9px] font-bold text-slate-500" title={group.name}>{group.name}</label>
+              <select
+                value={selection?.attributes[group.id] || ''}
+                onChange={e => {
+                  const variant = selectedProduct?.variants?.find(candidate =>
+                    Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === e.target.value
+                  );
+                  updateIndependentVariant(index, group.id, variant?.id || '');
+                }}
+                disabled={!selectedProduct}
+                className={cn(
+                  "min-w-0 flex-1 rounded-lg border border-slate-200 bg-white outline-none focus:border-blue-400",
+                  compact ? "px-2 py-1 text-xs" : "px-2 py-1.5 text-xs"
+                )}
+                aria-label={`Select ${group.name}`}
+              >
+                <option value="">Select {group.name}</option>
+                {group.options.map(option => {
+                  const variant = selectedProduct?.variants?.find(candidate =>
+                    Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === option
+                  );
+                  const location = inventorySource === 'mixed' ? item.location : inventorySource;
+                  return (
+                    <option key={option} value={option} disabled={!variant}>
+                      {option}{variant ? ` · ${variant.price} · stock ${variant[location]}` : ' · unavailable'}
+                    </option>
+                  );
+                })}
+              </select>
+              {selection && (
+                <input
+                  type="number"
+                  min="1"
+                  value={selection.quantity}
+                  onChange={e => updateVariantSelectionQuantity(index, selection.variantId, Number(e.target.value))}
+                  className={cn("w-14 rounded border border-slate-200 px-1 py-1 text-right", compact ? "text-xs" : "text-sm")}
+                  aria-label={`Quantity for ${group.name}`}
+                />
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         {combinationGroups.map(group => {
           const combinationVariants = (selectedProduct?.variants || []).filter(variant =>
             combinationGroups.every(combinationGroup => !!variant.attributes[combinationGroup.id])
@@ -905,15 +913,16 @@ export default function NewOrder() {
     }));
   };
 
-  const updateIndependentVariant = (index: number, variant: ProductVariant, selected: boolean) => {
+  const updateIndependentVariant = (index: number, groupId: string, variantId: string) => {
     setItems(prev => prev.map((item, itemIndex) => {
       if (itemIndex !== index) return item;
       const product = products.find(candidate => candidate.id === item.productId);
       if (!product) return item;
       const currentSelections = (item.variantSelections || []).filter(selection =>
-        selection.variantId !== variant.id
+        !selection.attributes[groupId]
       );
-      if (selected) currentSelections.push(createVariantSelection(product, variant));
+      const variant = product.variants?.find(candidate => candidate.id === variantId);
+      if (variant) currentSelections.push(createVariantSelection(product, variant));
       return summarizeVariantSelections(item, product, currentSelections);
     }));
   };
@@ -1012,6 +1021,14 @@ export default function NewOrder() {
               quantity: (baseRequirement?.quantity || 0) + (Number(item.quantity) || 0)
             });
           }
+          const requiredCombinationGroups = (product.variantGroups || []).filter(group => !group.independent);
+          const hasCombinationSelection = itemSelections.length
+            ? itemSelections.some(selection =>
+                requiredCombinationGroups.length > 0
+                && requiredCombinationGroups.every(group => !!selection.attributes[group.id])
+                && Object.keys(selection.attributes).length === requiredCombinationGroups.length
+              )
+            : !!item.variantId;
           if (product.variantGroups?.length && !itemSelections.length && !item.variantId) {
             const unchangedLegacyItem = originalOrder?.items.some(originalItem =>
               originalItem.productId === item.productId
@@ -1024,6 +1041,10 @@ export default function NewOrder() {
               setSaving(false);
               return showError(`Select all options for "${item.productName}".`);
             }
+          }
+          if (requiredCombinationGroups.length && itemSelections.length && !hasCombinationSelection) {
+            setSaving(false);
+            return showError(`Select all combined options for "${item.productName}".`);
           }
 
           const selectedVariantQuantities = itemSelections.length
@@ -1174,8 +1195,19 @@ export default function NewOrder() {
             quantity: (currentBase?.quantity || 0) + (Number(item.quantity) || 0)
           });
         }
+        const requiredCombinationGroups = (product.variantGroups || []).filter(group => !group.independent);
+        const hasCombinationSelection = itemSelections.length
+          ? itemSelections.some(selection =>
+              requiredCombinationGroups.length > 0
+              && requiredCombinationGroups.every(group => !!selection.attributes[group.id])
+              && Object.keys(selection.attributes).length === requiredCombinationGroups.length
+            )
+          : !!item.variantId;
         if (product.variantGroups?.length && !itemSelections.length && !item.variantId) {
           return showError(`Select all options for "${item.productName}" before downloading the quote.`);
+        }
+        if (requiredCombinationGroups.length && itemSelections.length && !hasCombinationSelection) {
+          return showError(`Select all combined options for "${item.productName}" before downloading the quote.`);
         }
         const selectedVariantQuantities = itemSelections.length
           ? itemSelections.map(selection => ({ variantId: selection.variantId, quantity: selection.quantity }))

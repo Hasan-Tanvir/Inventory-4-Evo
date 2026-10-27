@@ -88,8 +88,7 @@ const createVariantId = () => `VAR-${Date.now()}-${Math.random().toString(36).sl
 
 const buildVariantCombinations = (
   groups: ProductVariantGroup[],
-  existingVariants: ProductVariant[],
-  defaultPrice: number
+  existingVariants: ProductVariant[]
 ): ProductVariant[] => {
   const configuredGroups = groups.map(group => ({
     ...group,
@@ -126,7 +125,7 @@ const buildVariantCombinations = (
       attributes,
       dhaka: Number(existing?.dhaka) || 0,
       chittagong: Number(existing?.chittagong) || 0,
-      price: existing ? Number(existing.price) || 0 : defaultPrice,
+      price: existing ? Number(existing.price) || 0 : 0,
       commissionAdjustment: existing ? Number(existing.commissionAdjustment) || 0 : 0
     };
   });
@@ -627,8 +626,7 @@ const Products = () => {
     if (!editingProduct) return;
     const variants = buildVariantCombinations(
       variantGroups,
-      editingProduct.variants || [],
-      Number(editingProduct.retailPrice) || 0
+      editingProduct.variants || []
     );
     setEditingProduct({ ...editingProduct, variantGroups, variants });
   };
