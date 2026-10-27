@@ -303,6 +303,7 @@ const Products = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [variantOptionDrafts, setVariantOptionDrafts] = useState<Record<string, string>>({});
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -497,6 +498,7 @@ const Products = () => {
       }
       setProducts(await api.getProducts());
       setStockEntries(await api.getProductStockEntries());
+      setVariantOptionDrafts({});
       setEditingProduct(null);
       showSuccess('Product saved successfully');
     }
@@ -640,8 +642,26 @@ const Products = () => {
     updateVariantGroups(groups);
   };
 
+  const commitVariantGroupOptions = (groupId: string) => {
+    const group = (editingProduct?.variantGroups || []).find(candidate => candidate.id === groupId);
+    if (!group) return;
+    setVariantOptionDrafts(current => ({
+      ...current,
+      [groupId]: group.options.join(', ')
+    }));
+  };
+
   const removeVariantGroup = (index: number) => {
-    const groups = (editingProduct?.variantGroups || []).filter((_, groupIndex) => groupIndex !== index);
+    const currentGroups = editingProduct?.variantGroups || [];
+    const removedGroupId = currentGroups[index]?.id;
+    const groups = currentGroups.filter((_, groupIndex) => groupIndex !== index);
+    if (removedGroupId) {
+      setVariantOptionDrafts(current => {
+        const next = { ...current };
+        delete next[removedGroupId];
+        return next;
+      });
+    }
     updateVariantGroups(groups);
   };
 
@@ -1166,8 +1186,13 @@ const Products = () => {
         </Dialog>
 
         {/* Product Edit Dialog */}
-        <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
-          <DialogContent className="max-w-2xl">
+        <Dialog open={!!editingProduct} onOpenChange={(open) => {
+          if (!open) {
+            setVariantOptionDrafts({});
+            setEditingProduct(null);
+          }
+        }}>
+          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto overscroll-contain">
             <DialogHeader><DialogTitle>{editingProduct?.id ? 'Edit Product' : 'New Product'}</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2"><Label>Product Name</Label><Input value={editingProduct?.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} /></div>
@@ -1262,8 +1287,12 @@ const Products = () => {
                       aria-label={`Option group ${index + 1} name`}
                     />
                     <Input
-                      value={(group.options || []).join(', ')}
-                      onChange={e => updateVariantGroupOptions(index, e.target.value)}
+                      value={variantOptionDrafts[group.id] ?? (group.options || []).join(', ')}
+                      onChange={e => {
+                        setVariantOptionDrafts(current => ({ ...current, [group.id]: e.target.value }));
+                        updateVariantGroupOptions(index, e.target.value);
+                      }}
+                      onBlur={() => commitVariantGroupOptions(group.id)}
                       placeholder="Options (e.g. Red, Blue)"
                       aria-label={`Options for ${group.name || `group ${index + 1}`}`}
                     />
