@@ -1341,14 +1341,18 @@ const Products = () => {
                     <div className="overflow-x-auto">
                       <div className="min-w-[580px]">
                         <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(4,minmax(70px,1fr))] gap-2 px-1 text-[10px] font-bold uppercase text-slate-500">
-                          <span>Combination</span><span>Price</span><span>Dhaka Qty</span><span>CTG Qty</span><span>Secondary Comm.</span>
+                          <span>Option / Combination</span><span>Price</span><span>Dhaka Qty</span><span>CTG Qty</span><span>Secondary Comm.</span>
                         </div>
                         <div className="max-h-56 space-y-2 overflow-y-auto">
                           {(editingProduct?.variants || []).map(variant => (
                             <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(4,minmax(70px,1fr))] items-center gap-2" key={variant.id}>
                               <span className="break-words text-xs font-semibold">
-                                {(editingProduct?.variantGroups || [])
-                                  .map(group => `${group.name}: ${variant.attributes[group.id]}`)
+                                {Object.entries(variant.attributes || {})
+                                  .map(([groupId, option]) => {
+                                    const group = (editingProduct?.variantGroups || []).find(candidate => candidate.id === groupId);
+                                    return group?.name ? `${group.name}: ${option}` : option;
+                                  })
+                                  .filter(Boolean)
                                   .join(' / ')}
                               </span>
                               <Input type="number" min="0" value={variant.price} onChange={e => updateVariantField(variant.id, 'price', Number(e.target.value))} aria-label={`Price for ${variant.id}`} />
