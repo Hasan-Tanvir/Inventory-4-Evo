@@ -8,7 +8,7 @@ import { formatNumber, generateInvoiceHtml, printDoc } from '@/utils/invoice-gen
 import { getTodayISO } from '@/utils/date';
 import { showSuccess, showError } from '@/utils/toast';
 import { Dealer, Officer, Product, ProductVariant, ProductVariantGroup, ProductVariantSelection, Order, Customization } from '@/types';
-import { Trash2, ChevronDown, ChevronUp, Plus, GripVertical, Download, FileText, X, RefreshCcw } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronUp, Plus, GripVertical, Download, FileText, X, RefreshCcw, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -157,12 +157,20 @@ const VariantDropdown = ({
       <button
         type="button"
         aria-expanded={open}
+        aria-label={`${placeholder}${selectedOption ? `: ${selectedOption.label}` : ''}`}
         disabled={disabled}
         onClick={() => setOpen(current => !current)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left text-xs outline-none focus:border-blue-400 disabled:bg-slate-50"
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-xs outline-none focus:border-blue-400 disabled:bg-slate-50",
+          selectedOption ? "border-emerald-300 bg-emerald-50/70" : "border-slate-200 bg-white"
+        )}
       >
-        <span className="min-w-0 truncate font-semibold text-slate-800">{selectedOption?.label || placeholder}</span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <span className={cn("min-w-0 truncate font-semibold", selectedOption ? "text-emerald-800" : "text-slate-500")}>
+          {selectedOption?.label || placeholder}
+        </span>
+        {selectedOption
+          ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+          : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
       </button>
       {open && (
         <div className="absolute left-0 right-0 top-full z-[100] mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
@@ -190,6 +198,7 @@ const VariantDropdown = ({
               className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{option.label}</span>
+              {option.value === value && <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}
               <span className="flex shrink-0 items-center gap-1 text-[9px] font-medium">
                 <span className={option.dhaka > 0 ? 'text-emerald-700' : 'text-slate-400'}>DHK {option.dhaka}</span>
                 <span className="text-slate-300">/</span>
@@ -243,6 +252,11 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
     && combinationGroups.every(group => !!selection.attributes[group.id])
     && Object.keys(selection.attributes).length === combinationGroups.length
   );
+  const selectedGroupCount = variantGroups.filter(group =>
+    selectedVariants.some(selection => group.options.includes(selection.attributes[group.id]))
+    || group.options.includes(item.variantAttributes[group.id] || '')
+  ).length;
+  const allOptionsSelected = variantGroups.length > 0 && selectedGroupCount === variantGroups.length;
 
   const renderVariantSelectors = (compact: boolean) => variantGroups.length
     ? (
@@ -251,7 +265,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           const selection = selectedVariants.find(candidate => candidate.attributes[group.id]);
           return (
             <div className="flex items-center gap-1.5" key={group.id}>
-              <label className="w-16 shrink-0 truncate text-[9px] font-bold text-slate-500" title={group.name}>{group.name}</label>
+              <label className="w-16 shrink-0 truncate text-[9px] font-bold text-slate-500" title={group.name}>
+                {group.name}<span className="ml-0.5 text-red-500">*</span>
+              </label>
               <VariantDropdown
                 value={selection?.attributes[group.id] || ''}
                 onChange={option => {
@@ -285,9 +301,11 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           );
           return (
             <div key={group.id}>
-              <label className="mt-1 block text-[9px] font-bold text-slate-500">{group.name} · Combination</label>
+              <label className="mt-1 block text-[9px] font-bold text-slate-500">
+                {group.name} · Combination<span className="ml-0.5 text-red-500">*</span>
+              </label>
               <VariantDropdown
-                value={selectedCombination?.attributes[group.id] || ''}
+                value={selectedCombination?.attributes[group.id] || item.variantAttributes[group.id] || ''}
                 onChange={option => updateVariantAttribute(index, group.id, option)}
                 disabled={!selectedProduct}
                 placeholder={`Select ${group.name}`}
@@ -311,6 +329,13 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             </div>
           );
         })}
+        <div className={cn(
+          "flex items-center gap-1 text-[9px] font-bold",
+          allOptionsSelected ? "text-emerald-700" : "text-amber-700"
+        )}>
+          {allOptionsSelected ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+          Options selected: {selectedGroupCount}/{variantGroups.length}
+        </div>
       </div>
     )
     : null;
@@ -1090,6 +1115,46 @@ export default function NewOrder() {
     if (!filledItems.length) return showError('Add at least one item');
     if (filledItems.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) {
       return showError('Every order item must have a quantity greater than zero.');
+    }
+    for (const item of filledItems) {
+      const product = products.find(candidate => candidate.id === item.productId);
+      const groups = product?.variantGroups || [];
+      if (!product || !groups.length) continue;
+
+      const selections = item.variantSelections || [];
+      const missingGroups = groups.filter(group =>
+        !selections.some(selection => group.options.includes(selection.attributes[group.id]))
+        && !group.options.includes(item.variantAttributes[group.id] || '')
+      );
+      if (missingGroups.length) {
+        return showError(`Select every option for "${product.name}" before placing the order. Missing: ${missingGroups.map(group => group.name).join(', ')}.`);
+      }
+
+      const independentGroups = groups.filter(group => group.independent);
+      const invalidIndependentSelection = independentGroups.some(group => {
+        const selection = selections.find(candidate => candidate.attributes[group.id]);
+        const variant = product.variants?.find(candidate => candidate.id === selection?.variantId);
+        return !variant
+          || Object.keys(variant.attributes).length !== 1
+          || variant.attributes[group.id] !== selection?.attributes[group.id];
+      });
+      const combinationGroups = groups.filter(group => !group.independent);
+      const combinationSelection = combinationGroups.length
+        ? selections.find(selection =>
+            Object.keys(selection.attributes).length === combinationGroups.length
+            && combinationGroups.every(group => group.options.includes(selection.attributes[group.id]))
+          )
+        : undefined;
+      const combinationVariant = combinationSelection
+        ? product.variants?.find(candidate => candidate.id === combinationSelection.variantId)
+        : undefined;
+      const invalidCombinationSelection = combinationGroups.length > 0
+        && (!combinationVariant || combinationGroups.some(group =>
+          combinationVariant.attributes[group.id] !== combinationSelection?.attributes[group.id]
+        ));
+      if (invalidIndependentSelection || invalidCombinationSelection) {
+        return showError(`One or more selected options for "${product.name}" are unavailable. Please choose them again.`);
+      }
     }
 
     setSaving(true);
