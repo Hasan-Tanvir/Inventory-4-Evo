@@ -644,9 +644,6 @@ export default function NewOrder() {
   const [orderType, setOrderType] = useState<'dealer' | 'retail'>('dealer');
   const [inventorySource, setInventorySource] = useState<'dhaka' | 'chittagong' | 'mixed'>('dhaka');
   const [selectedDealer, setSelectedDealer] = useState<Dealer | null>(null);
-  const stockTransferFrom = orderType === 'dealer' && selectedDealer?.name.trim().toLowerCase() === 'dhaka office'
-    ? 'chittagong' as const
-    : undefined;
   const [dealerSearch, setDealerSearch] = useState('');
   const [dealerSuggestions, setDealerSuggestions] = useState<Dealer[]>([]);
   const [customerName, setCustomerName] = useState('');
@@ -1124,7 +1121,6 @@ export default function NewOrder() {
       const selections = item.variantSelections || [];
       const missingGroups = groups.filter(group =>
         !selections.some(selection => group.options.includes(selection.attributes[group.id]))
-        && !group.options.includes(item.variantAttributes[group.id] || '')
       );
       if (missingGroups.length) {
         return showError(`Select every option for "${product.name}" before placing the order. Missing: ${missingGroups.map(group => group.name).join(', ')}.`);
@@ -1159,7 +1155,6 @@ export default function NewOrder() {
 
     setSaving(true);
     const shouldSaveAsQuote = forceQuote || (isQuote && !editOrderId);
-    const orderStockTransferFrom = stockTransferFrom;
     const isQuoteConversion = !!(editOrderId && originalIsQuote && !shouldSaveAsQuote);
     
     // Generate new order ID: if converting quote, get next order ID, otherwise get new ID
@@ -1189,8 +1184,8 @@ export default function NewOrder() {
       for (const item of filledItems) {
         const product = allProducts.find(p => p.id === item.productId);
         if (product) {
-          const itemLocation = orderStockTransferFrom ? 'dhaka' : inventorySource === 'mixed' ? item.location : inventorySource;
-          const location = orderStockTransferFrom || itemLocation;
+          const itemLocation = inventorySource === 'mixed' ? item.location : inventorySource;
+          const location = itemLocation;
           const itemSelections = item.variantSelections || [];
           if (!product.variantGroups?.length && !itemSelections.length && !item.variantId) {
             const baseKey = `${product.id}:${location}`;
@@ -1255,7 +1250,7 @@ export default function NewOrder() {
           ? (originalOrder?.items || [])
               .filter(originalItem =>
                 originalItem.productId === product.id
-                && (originalOrder?.stockTransferFrom || originalItem.location) === location
+                && originalItem.location === location
               )
               .reduce((sum, originalItem) => sum + (Number(originalItem.quantity) || 0), 0)
           : 0;
@@ -1274,7 +1269,7 @@ export default function NewOrder() {
           ? (originalOrder?.items || [])
               .filter(originalItem =>
                 originalItem.productId === product.id
-                && (originalOrder?.stockTransferFrom || originalItem.location) === location
+                && originalItem.location === location
               )
               .reduce((sum, originalItem) => {
                 const selections = originalItem.variantSelections?.length
@@ -1319,7 +1314,7 @@ export default function NewOrder() {
         basePrice: i.basePrice,
         price: i.price,
         total: i.total,
-        location: orderStockTransferFrom ? 'dhaka' : inventorySource === 'mixed' ? i.location : inventorySource,
+        location: inventorySource === 'mixed' ? i.location : inventorySource,
         commission: i.commission,
         serialNumbers: i.serials.split(',').map(s => s.trim()).filter(Boolean),
       })),
@@ -1335,7 +1330,6 @@ export default function NewOrder() {
       partialAmount: orderType === 'retail' && retailPaymentStatus === 'partial' ? partialAmount : undefined,
       includePriceIncreaseInCommission: false,
       inventorySource,
-      stockTransferFrom: orderStockTransferFrom,
       showSerialsOnInvoice: showSerials,
     };
 
@@ -1370,7 +1364,7 @@ export default function NewOrder() {
     for (const item of order.items) {
       const product = allProducts.find(p => p.id === item.productId);
       if (product) {
-        const stockLocation = order.stockTransferFrom || item.location;
+        const stockLocation = item.location;
         const itemSelections = item.variantSelections || [];
         if (!product.variantGroups?.length && !itemSelections.length && !item.variantId) {
           const baseKey = `${product.id}:${stockLocation}`;
@@ -1468,7 +1462,7 @@ export default function NewOrder() {
       basePrice: i.basePrice,
       price: i.price,
       total: i.total,
-      location: stockTransferFrom ? 'dhaka' : inventorySource === 'mixed' ? i.location : inventorySource,
+      location: inventorySource === 'mixed' ? i.location : inventorySource,
       commission: i.commission,
       serialNumbers: i.serials.split(',').map(s => s.trim()).filter(Boolean),
     })),
@@ -1481,7 +1475,6 @@ export default function NewOrder() {
     createdBy: api.getCurrentUser()?.id || 'unknown',
     isQuote: true,
     inventorySource,
-    stockTransferFrom,
     showSerialsOnInvoice: showSerials,
   });
 

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Clock, Search, Edit, Trash2, List, LayoutGrid, Eye, Printer, Truck, Package, Plus, X, PauseCircle, ChevronDown, Check, ArrowRightLeft } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Search, Edit, Trash2, List, LayoutGrid, Eye, Printer, Truck, Package, Plus, X, PauseCircle, ChevronDown, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -45,9 +45,6 @@ const SortableOrderRow = ({
   navigate, 
   setInvoiceOrder, 
   handleApprove, 
-  handleApproveStockTransfer,
-  isDhakaOfficeOrder,
-  isStockTransferApproved,
   handleReject, 
   handleDelete,
   handlePrint,
@@ -126,11 +123,6 @@ const SortableOrderRow = ({
             </Button>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100" onClick={() => handlePrint(o)} title="Print"><Printer className="w-4 h-4" /></Button>
-        {user?.role === 'admin' && o.status === 'approved' && isDhakaOfficeOrder && (
-          isStockTransferApproved
-            ? <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-emerald-700 bg-emerald-50" disabled title="Stock transfer approved"><CheckCircle2 className="w-4 h-4" /></Button>
-            : <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100" onClick={() => handleApproveStockTransfer(o.id)} title="Approve CTG to Dhaka stock transfer" aria-label="Approve stock transfer"><ArrowRightLeft className="w-4 h-4" /></Button>
-        )}
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setInvoiceOrder(o)}><Eye className="w-4 h-4" /></Button>
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => { if (typeof window !== 'undefined') document.body.classList.add('hide-mobile-bottom-bar'); navigate(`/new-order?edit=${o.id}`); }}><Edit className="w-4 h-4" /></Button>
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-400" onClick={() => handleDelete(o.id)}><Trash2 className="w-4 h-4" /></Button>
@@ -161,9 +153,6 @@ const SortableOrderCard = ({
   navigate, 
   setInvoiceOrder, 
   handleApprove, 
-  handleApproveStockTransfer,
-  isDhakaOfficeOrder,
-  isStockTransferApproved,
   handleReject, 
   handleDelete,
   handlePrint,
@@ -239,11 +228,6 @@ const SortableOrderCard = ({
           </Button>
         </div>
         <Button variant="outline" size="sm" className="h-8" onClick={() => handlePrint(o)}><Printer className="w-3.5 h-3.5 mr-1" /> Print</Button>
-        {user?.role === 'admin' && o.status === 'approved' && isDhakaOfficeOrder && (
-          isStockTransferApproved
-            ? <Button variant="outline" size="sm" className="h-8 text-emerald-700" disabled title="Stock transfer approved"><CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Transfer approved</Button>
-            : <Button variant="outline" size="sm" className="h-8 text-blue-700" onClick={() => handleApproveStockTransfer(o.id)} title="Approve CTG to Dhaka stock transfer"><ArrowRightLeft className="w-3.5 h-3.5 mr-1" /> Approve transfer</Button>
-        )}
         <Button variant="outline" size="sm" className="h-8" onClick={() => setInvoiceOrder(o)}><Eye className="w-3.5 h-3.5 mr-1" /> View</Button>
           <Button variant="outline" size="sm" className="h-8" onClick={() => { if (typeof window !== 'undefined') document.body.classList.add('hide-mobile-bottom-bar'); navigate(`/new-order?edit=${o.id}`); }}><Edit className="w-3.5 h-3.5 mr-1" /> Edit</Button>
         <Button variant="outline" size="sm" className="h-8 text-red-500" onClick={() => handleDelete(o.id)}><Trash2 className="w-3.5 h-3.5 mr-1" /> Delete</Button>
@@ -264,7 +248,6 @@ const Orders = () => {
   const [user, setUser] = useState<User | null>(null);
   const [dealers, setDealers] = useState<Dealer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [transferredOrderIds, setTransferredOrderIds] = useState<Set<string>>(() => new Set());
   const [customerSearch, setCustomerSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -314,11 +297,10 @@ const Orders = () => {
   );
 
   const loadData = async () => {
-    const [allOrders, allDealers, allProducts, stockTransfers] = await Promise.all([
+    const [allOrders, allDealers, allProducts] = await Promise.all([
       api.getOrders(),
       api.getDealers(),
       api.getProducts(),
-      api.getProductStockTransfers(),
     ]);
     const sortedOrders = (allOrders || [])
       .filter(o => !o.isQuote)
@@ -330,7 +312,6 @@ const Orders = () => {
     setOrders(sortedOrders);
     setDealers(allDealers || []);
     setProducts(allProducts || []);
-    setTransferredOrderIds(new Set((stockTransfers || []).map(transfer => transfer.orderId).filter(Boolean)));
     setUser(api.getCurrentUser());
   };
 
@@ -343,26 +324,6 @@ const Orders = () => {
     await api.approveOrder(id, user.id);
     await loadData();
     showSuccess("Order approved and stock updated.");
-  };
-
-  const handleApproveStockTransfer = async (id: string) => {
-    try {
-      const result = await api.approveOrderStockTransfer(id);
-      if (!result.success) {
-        showError(result.message || 'Could not approve stock transfer.');
-        return;
-      }
-      await loadData();
-      showSuccess(result.alreadyTransferred ? 'This order has already been transferred.' : 'CTG stock transferred to Dhaka for this order.');
-    } catch (error: unknown) {
-      console.error('approveOrderStockTransfer failed', error);
-      showError(`Stock transfer failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
-  const isDhakaOfficeOrder = (order: Order) => {
-    const dealerName = dealers.find(dealer => dealer.id === order.dealerId)?.name || order.customerName;
-    return order.type === 'dealer' && dealerName.trim().toLowerCase() === 'dhaka office';
   };
 
   const handleReject = async (id: string) => {
@@ -832,9 +793,6 @@ const Orders = () => {
                         navigate={navigate}
                         setInvoiceOrder={setInvoiceOrder}
                         handleApprove={handleApprove}
-                        handleApproveStockTransfer={handleApproveStockTransfer}
-                        isDhakaOfficeOrder={isDhakaOfficeOrder(o)}
-                        isStockTransferApproved={transferredOrderIds.has(o.id)}
                         handleReject={handleReject}
                         handleDelete={handleDelete}
                         handlePrint={handlePrintOrder}
@@ -860,9 +818,6 @@ const Orders = () => {
                       navigate={navigate}
                       setInvoiceOrder={setInvoiceOrder}
                       handleApprove={handleApprove}
-                      handleApproveStockTransfer={handleApproveStockTransfer}
-                      isDhakaOfficeOrder={isDhakaOfficeOrder(o)}
-                      isStockTransferApproved={transferredOrderIds.has(o.id)}
                       handleReject={handleReject}
                       handleDelete={handleDelete}
                       handlePrint={handlePrintOrder}
