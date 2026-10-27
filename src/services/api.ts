@@ -257,6 +257,7 @@ const getRemote = async <T>(key: string, def: T): Promise<T> => {
         variations: row.variations || [],
         variantGroups: row.variant_groups || [],
         variants: row.variants || [],
+        variantPriceCombinations: row.variant_price_combinations || [],
         sortOrder: row.sort_order
       }));
       // Sort products by sortOrder
@@ -533,6 +534,7 @@ const pushRemote = async (key: string, item: any) => {
         variations: item.variations || [],
         variant_groups: item.variantGroups || [],
         variants: item.variants || [],
+        variant_price_combinations: item.variantPriceCombinations || [],
         sort_order: item.sortOrder
       };
     } else if (key === KEYS.DEALERS) {

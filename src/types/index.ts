@@ -54,6 +54,7 @@ export interface Product {
   variations?: string[];
   variantGroups?: ProductVariantGroup[];
   variants?: ProductVariant[];
+  variantPriceCombinations?: ProductVariantPriceCombination[];
   sortOrder?: number;
 }
 
@@ -73,6 +74,13 @@ export interface ProductVariant {
   retailPrice?: number;
   price?: number;
   commissionAdjustment: number;
+}
+
+export interface ProductVariantPriceCombination {
+  id: string;
+  attributes: Record<string, string>;
+  dealerAdjustment: number;
+  retailAdjustment: number;
 }
 
 export type VariantPriceMode = 'additive';

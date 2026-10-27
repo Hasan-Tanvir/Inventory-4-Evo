@@ -60,6 +60,7 @@ This version is now prepared to run on Vercel with a shared Supabase data store.
    - For existing databases using option-level stock transfers, also run `supabase/migrations/add_variant_stock_transfers.sql`. It only adds transfer metadata columns and an optional order source marker.
    - The optional `supabase/migrations/rollback_variant_stock_transfers.sql` refuses to run while transfer/order records use those fields. Reconcile or remove this feature's records before rollback so existing stock history is not silently misinterpreted.
    - Dealer base prices are configured using quantity slabs in Products. If no slab matches an order quantity, its base dealer price is zero. Product option dealer/retail add-on prices are stored in the existing variants JSON column and need no extra SQL.
+   - To use price adjustments for combinations of independent product options on an existing database, run `supabase/migrations/add_variant_price_combinations.sql`. This adds one JSONB column with an empty-array default and leaves existing product data unchanged. To remove only this feature, deploy the pre-feature app version first, then run `supabase/migrations/rollback_variant_price_combinations.sql`; this permanently deletes the saved combination rules.
    - Existing `products.dealer_price` columns and values are retained for database compatibility, but are no longer used for dealer order pricing. Do not run its rollback migration unless you intend to permanently delete that legacy data.
 3. Copy `.env.example` to `.env` and set:
    - `VITE_SUPABASE_URL`

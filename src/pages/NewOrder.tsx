@@ -50,20 +50,41 @@ const getVariantOptionPrice = (variant: ProductVariant, orderType: OrderType) =>
   ? Number(variant.retailPrice ?? variant.price) || 0
   : Number(variant.dealerPrice ?? variant.price) || 0;
 
+const getVariantPriceCombinationAdjustment = (
+  product: Product,
+  selectedAttributes: Map<string, string>,
+  orderType: OrderType
+) => (product.variantPriceCombinations || []).reduce((total, combination) => {
+  const attributes = Object.entries(combination.attributes || {});
+  const matches = attributes.length >= 2
+    && attributes.every(([groupId, option]) => selectedAttributes.get(groupId) === option);
+  if (!matches) return total;
+  const adjustment = orderType === 'retail'
+    ? combination.retailAdjustment
+    : combination.dealerAdjustment;
+  return total + (Number(adjustment) || 0);
+}, 0);
+
 const summarizeVariantSelections = (
   item: OrderItemRow,
   product: Product,
-  selections: ProductVariantSelection[]
+  selections: ProductVariantSelection[],
+  orderType: OrderType
 ): OrderItemRow => {
   const quantity = Number(item.quantity) || 1;
   const basePrice = Number(item.basePrice) || 0;
-  const price = basePrice + selections.reduce((sum, selection) => sum + (Number(selection.price) || 0), 0);
-  const commissionAdjustment = selections.reduce((sum, selection) => sum + (Number(selection.commissionAdjustment) || 0), 0);
-  const commission = Math.max(0, (Number(product.commission) || 0) + commissionAdjustment) * quantity;
   const selectedAttributes = new Map<string, string>();
   selections.forEach(selection => Object.entries(selection.attributes).forEach(([groupId, option]) => {
     selectedAttributes.set(groupId, option);
   }));
+  const combinationAdjustment = getVariantPriceCombinationAdjustment(product, selectedAttributes, orderType);
+  const price = Math.max(0,
+    basePrice
+    + selections.reduce((sum, selection) => sum + (Number(selection.price) || 0), 0)
+    + combinationAdjustment
+  );
+  const commissionAdjustment = selections.reduce((sum, selection) => sum + (Number(selection.commissionAdjustment) || 0), 0);
+  const commission = Math.max(0, (Number(product.commission) || 0) + commissionAdjustment) * quantity;
   const variation = (product.variantGroups || [])
     .map(group => selectedAttributes.get(group.id))
     .filter((option): option is string => !!option)
@@ -889,7 +910,7 @@ export default function NewOrder() {
         priceIncrease: Math.max(0, (item.price || 0) - catalogBasePrice),
       };
       return product?.variantGroups?.length
-        ? summarizeVariantSelections(row, product, variantSelections)
+        ? summarizeVariantSelections(row, product, variantSelections, ord.type || 'dealer')
         : row;
     }));
   };
@@ -971,8 +992,13 @@ export default function NewOrder() {
         const product = allProducts.find(p => p && p.id === updated.productId);
         if (product?.variantGroups?.length) {
           const optionPrice = (updated.variantSelections || []).reduce((sum, selection) => sum + (Number(selection.price) || 0), 0);
+          const selectedAttributes = new Map<string, string>();
+          (updated.variantSelections || []).forEach(selection => Object.entries(selection.attributes).forEach(([groupId, option]) => {
+            selectedAttributes.set(groupId, option);
+          }));
+          const combinationAdjustment = getVariantPriceCombinationAdjustment(product, selectedAttributes, orderType);
           const basePrice = field === 'price'
-            ? Math.max(0, (Number(value) || 0) - optionPrice)
+            ? Math.max(0, (Number(value) || 0) - optionPrice - combinationAdjustment)
             : getProductBasePrice(product, orderType, qty);
           const selectionQuantity = Math.max(1, qty);
           const selections = (updated.variantSelections || []).map(selection => ({
@@ -982,7 +1008,8 @@ export default function NewOrder() {
           const recalculated = summarizeVariantSelections(
             { ...updated, quantity: qty, basePrice },
             product,
-            selections
+            selections,
+            orderType
           );
           return {
             ...recalculated,
@@ -1033,7 +1060,7 @@ export default function NewOrder() {
         !combinationGroupIds.some(combinationGroupId => selection.attributes[combinationGroupId])
       );
       if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1, orderType));
-      const updated = summarizeVariantSelections(item, product, currentSelections);
+      const updated = summarizeVariantSelections(item, product, currentSelections, orderType);
       return {
         ...updated,
         variantAttributes,
@@ -1053,7 +1080,7 @@ export default function NewOrder() {
       );
       const variant = product.variants?.find(candidate => candidate.id === variantId);
       if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1, orderType));
-      return summarizeVariantSelections(item, product, currentSelections);
+      return summarizeVariantSelections(item, product, currentSelections, orderType);
     }));
   };
 
@@ -1070,7 +1097,7 @@ export default function NewOrder() {
             ? createVariantSelection(product, variant, Number(item.quantity) || 1, nextType)
             : { ...selection, quantity: Number(item.quantity) || 1 };
         });
-        return summarizeVariantSelections({ ...item, basePrice }, product, selections);
+        return summarizeVariantSelections({ ...item, basePrice }, product, selections, nextType);
       }
       const variant = product.variants?.find(candidate => candidate.id === item.variantId);
       const price = variant ? getVariantOptionPrice(variant, nextType) : basePrice;

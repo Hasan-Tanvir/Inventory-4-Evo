@@ -33,6 +33,7 @@ create table if not exists public.products (
   variations jsonb not null default '[]'::jsonb,
   variant_groups jsonb not null default '[]'::jsonb,
   variants jsonb not null default '[]'::jsonb,
+  variant_price_combinations jsonb not null default '[]'::jsonb,
   sort_order integer,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())

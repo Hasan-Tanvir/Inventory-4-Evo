@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import { api } from '@/services/api';
-import { Product, ProductVariant, ProductVariantGroup, Category, ProductStockEntry, ProductStockTransfer, Slab } from '@/types';
+import { Product, ProductVariant, ProductVariantGroup, ProductVariantPriceCombination, Category, ProductStockEntry, ProductStockTransfer, Slab } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -412,6 +412,26 @@ const Products = () => {
         showError('Give every option group a name and at least one option, or remove the empty group.');
         return;
       }
+      const independentGroups = (editingProduct.variantGroups || []).filter(group => group.independent);
+      const priceCombinationKeys = new Set<string>();
+      const invalidPriceCombination = (editingProduct.variantPriceCombinations || []).some(combination => {
+        const attributes = Object.entries(combination.attributes || {});
+        const key = JSON.stringify(attributes.sort(([a], [b]) => a.localeCompare(b)));
+        const duplicate = priceCombinationKeys.has(key);
+        priceCombinationKeys.add(key);
+        return duplicate
+          || attributes.length < 2
+          || attributes.some(([groupId, option]) => {
+            const group = independentGroups.find(candidate => candidate.id === groupId);
+            return !group || !group.options.includes(option);
+          })
+          || !Number.isFinite(Number(combination.dealerAdjustment))
+          || !Number.isFinite(Number(combination.retailAdjustment));
+      });
+      if (invalidPriceCombination) {
+        showError('Each price combination must use at least two valid independent options and have valid dealer and retail adjustments.');
+        return;
+      }
       const invalidVariant = (editingProduct.variants || []).some(variant =>
         !Number.isFinite(Number(variant.dealerPrice ?? variant.price)) || Number(variant.dealerPrice ?? variant.price) < 0
         || !Number.isFinite(Number(variant.retailPrice ?? variant.price)) || Number(variant.retailPrice ?? variant.price) < 0
@@ -461,6 +481,11 @@ const Products = () => {
           }))
           .filter(group => group.name),
         variants: editingProduct.variants || [],
+        variantPriceCombinations: (editingProduct.variantPriceCombinations || []).map(combination => ({
+          ...combination,
+          dealerAdjustment: Number(combination.dealerAdjustment) || 0,
+          retailAdjustment: Number(combination.retailAdjustment) || 0
+        })),
         dhaka: isNewProduct ? 0 : editingProduct.dhaka,
         chittagong: isNewProduct ? 0 : editingProduct.chittagong
       } as Product);
@@ -709,6 +734,61 @@ const Products = () => {
       variant.id === variantId ? { ...variant, [field]: value } : variant
     );
     setEditingProduct({ ...editingProduct, variants });
+  };
+
+  const addVariantPriceCombination = () => {
+    if (!editingProduct) return;
+    const combinations = editingProduct.variantPriceCombinations || [];
+    setEditingProduct({
+      ...editingProduct,
+      variantPriceCombinations: [
+        ...combinations,
+        {
+          id: createVariantId(),
+          attributes: {},
+          dealerAdjustment: 0,
+          retailAdjustment: 0
+        }
+      ]
+    });
+  };
+
+  const updateVariantPriceCombination = (
+    combinationId: string,
+    update: Partial<ProductVariantPriceCombination>
+  ) => {
+    if (!editingProduct) return;
+    setEditingProduct({
+      ...editingProduct,
+      variantPriceCombinations: (editingProduct.variantPriceCombinations || []).map(combination =>
+        combination.id === combinationId ? { ...combination, ...update } : combination
+      )
+    });
+  };
+
+  const updateVariantPriceCombinationOption = (
+    combinationId: string,
+    groupId: string,
+    option: string
+  ) => {
+    if (!editingProduct) return;
+    const combinations = (editingProduct.variantPriceCombinations || []).map(combination => {
+      if (combination.id !== combinationId) return combination;
+      const attributes = { ...combination.attributes };
+      if (option) attributes[groupId] = option;
+      else delete attributes[groupId];
+      return { ...combination, attributes };
+    });
+    setEditingProduct({ ...editingProduct, variantPriceCombinations: combinations });
+  };
+
+  const removeVariantPriceCombination = (combinationId: string) => {
+    if (!editingProduct) return;
+    setEditingProduct({
+      ...editingProduct,
+      variantPriceCombinations: (editingProduct.variantPriceCombinations || [])
+        .filter(combination => combination.id !== combinationId)
+    });
   };
 
   const handleSaveStockEntry = async () => {
@@ -1026,7 +1106,7 @@ const Products = () => {
               <Button variant="outline" onClick={() => setShowCategoryManager(true)} className="h-11 w-full sm:w-auto"><Tags className="w-4 h-4 mr-2" /> Categories</Button>
               <Button variant="outline" onClick={() => setShowStockEntryDialog(true)} className="h-11 w-full sm:w-auto"><Warehouse className="w-4 h-4 mr-2" /> Stock Entry</Button>
               <Button variant="outline" onClick={() => setShowStockTransferDialog(true)} className="h-11 w-full sm:w-auto"><ArrowRightLeft className="w-4 h-4 mr-2" /> Stock Transfer</Button>
-              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [], variantGroups: [], variants: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [], variantGroups: [], variants: [], variantPriceCombinations: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
             </div>
           </div>
           {isMobile && activeView === 'products' && (
@@ -1357,6 +1437,58 @@ const Products = () => {
                     </label>
                   </div>
                 ))}
+                {((editingProduct?.variantGroups || []).filter(group => group.independent).length >= 2
+                  || !!editingProduct?.variantPriceCombinations?.length) && (
+                  <div className="space-y-3 border-t pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <Label>Independent Option Combination Pricing</Label>
+                        <p className="mt-1 text-xs text-slate-500">Set per-unit dealer and retail price increases or reductions when these independent options are selected together. Matching rules are added together.</p>
+                      </div>
+                      {(editingProduct?.variantGroups || []).filter(group => group.independent).length >= 2 && (
+                        <Button type="button" variant="outline" size="sm" onClick={addVariantPriceCombination}>
+                          <Plus className="mr-1 h-3.5 w-3.5" /> Add Rule
+                        </Button>
+                      )}
+                    </div>
+                    {(editingProduct?.variantPriceCombinations || []).length === 0 && (
+                      <p className="text-xs text-slate-500">No combination price rules configured.</p>
+                    )}
+                    {(editingProduct?.variantGroups || []).filter(group => group.independent).length < 2
+                      && !!editingProduct?.variantPriceCombinations?.length && (
+                        <p className="text-xs text-amber-700">At least two independent groups are required. Remove or restore the independent groups used by these rules before saving.</p>
+                      )}
+                    {(editingProduct?.variantPriceCombinations || []).map(combination => (
+                      <div className="grid min-w-0 grid-cols-1 items-end gap-2 rounded-md border bg-slate-50 p-2 md:grid-cols-[repeat(auto-fit,minmax(130px,1fr))_110px_110px_36px]" key={combination.id}>
+                        {(editingProduct?.variantGroups || []).filter(group => group.independent).map(group => (
+                          <label className="min-w-0 space-y-1 text-xs font-medium text-slate-600" key={group.id}>
+                            <span>{group.name || 'Independent option'}</span>
+                            <select
+                              className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-900"
+                              value={combination.attributes[group.id] || ''}
+                              onChange={event => updateVariantPriceCombinationOption(combination.id, group.id, event.target.value)}
+                              aria-label={`${group.name || 'Independent option'} for price combination`}
+                            >
+                              <option value="">Not included</option>
+                              {group.options.map(option => <option key={option} value={option}>{option}</option>)}
+                            </select>
+                          </label>
+                        ))}
+                        <label className="space-y-1 text-xs font-medium text-slate-600">
+                          <span>Dealer +/-</span>
+                          <Input type="number" step="any" value={combination.dealerAdjustment} onChange={event => updateVariantPriceCombination(combination.id, { dealerAdjustment: Number(event.target.value) })} aria-label={`Dealer price adjustment for rule ${combination.id}`} />
+                        </label>
+                        <label className="space-y-1 text-xs font-medium text-slate-600">
+                          <span>Retail +/-</span>
+                          <Input type="number" step="any" value={combination.retailAdjustment} onChange={event => updateVariantPriceCombination(combination.id, { retailAdjustment: Number(event.target.value) })} aria-label={`Retail price adjustment for rule ${combination.id}`} />
+                        </label>
+                        <Button type="button" variant="ghost" size="icon" className="justify-self-end text-red-400" onClick={() => removeVariantPriceCombination(combination.id)} aria-label="Remove price combination rule">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {(editingProduct?.variants || []).length > 0
                   && (editingProduct?.variantGroups || []).every(group => group.name.trim() && group.options.length > 0) && (
                   <div className="space-y-2 border-t pt-3">
