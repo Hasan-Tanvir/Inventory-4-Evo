@@ -252,6 +252,7 @@ const getRemote = async <T>(key: string, def: T): Promise<T> => {
         dhaka: row.dhaka,
         chittagong: row.chittagong,
         slabs: row.slabs || [],
+        variations: row.variations || [],
         sortOrder: row.sort_order
       }));
       // Sort products by sortOrder
@@ -522,6 +523,7 @@ const pushRemote = async (key: string, item: any) => {
         dhaka: item.dhaka,
         chittagong: item.chittagong,
         slabs: item.slabs || [],
+        variations: item.variations || [],
         sort_order: item.sortOrder
       };
     } else if (key === KEYS.DEALERS) {

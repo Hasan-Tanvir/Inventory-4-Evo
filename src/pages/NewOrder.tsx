@@ -154,14 +154,17 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             className="w-full border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-bold rounded-xl outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 transition-all"
             placeholder="Search products..."
           />
-          <input
-            type="text"
+          <select
             value={item.variation}
             onChange={e => updateItem(index, 'variation', e.target.value)}
-            className="mt-1.5 w-full border border-slate-200 bg-white px-3 py-1.5 text-xs rounded-lg outline-none focus:border-blue-400"
-            placeholder="Order variation (optional)"
+            disabled={!selectedProduct}
+            className="mt-1.5 w-full border border-slate-200 bg-white px-3 py-1.5 text-xs rounded-lg outline-none focus:border-blue-400 disabled:bg-slate-50"
             aria-label="Order variation (optional)"
-          />
+          >
+            <option value="">No variation</option>
+            {(selectedProduct?.variations || []).map((variation: string) => <option key={variation} value={variation}>{variation}</option>)}
+            {item.variation && !(selectedProduct?.variations || []).includes(item.variation) && <option value={item.variation}>{item.variation} (previously saved)</option>}
+          </select>
           {showSuggestions && (
             <div style={dropdownStyle} onMouseDown={e => e.preventDefault()}>
               <div className="max-h-72 overflow-y-auto">
@@ -287,13 +290,16 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
 
         <div>
           <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">Variation (optional)</label>
-          <input
-            type="text"
+          <select
             value={item.variation}
             onChange={e => updateItem(index, 'variation', e.target.value)}
-            className="w-full border border-slate-200 bg-white px-2 py-1.5 text-xs rounded-lg outline-none"
-            placeholder="Variation name"
-          />
+            disabled={!selectedProduct}
+            className="w-full border border-slate-200 bg-white px-2 py-1.5 text-xs rounded-lg outline-none disabled:bg-slate-50"
+          >
+            <option value="">No variation</option>
+            {(selectedProduct?.variations || []).map((variation: string) => <option key={variation} value={variation}>{variation}</option>)}
+            {item.variation && !(selectedProduct?.variations || []).includes(item.variation) && <option value={item.variation}>{item.variation} (previously saved)</option>}
+          </select>
         </div>
 
         <div className={cn("grid gap-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
@@ -591,6 +597,7 @@ export default function NewOrder() {
           ? allProducts.find(p => p && p.id === value)
           : allProducts.find(p => p && `${p.name}${p.version ? ` ${p.version}` : ''}`.toLowerCase() === String(value).toLowerCase().trim());
         if (product) {
+          if (field === 'productId' && product.id !== item.productId) updated.variation = '';
           updated.productId = product.id;
           updated.productName = product.name;
           updated.version = product.version || '';

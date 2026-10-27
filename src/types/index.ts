@@ -50,6 +50,7 @@ export interface Product {
   dhaka: number;
   chittagong: number;
   slabs: Slab[];
+  variations?: string[];
   sortOrder?: number;
 }
 

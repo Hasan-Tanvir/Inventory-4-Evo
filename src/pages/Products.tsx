@@ -341,6 +341,7 @@ const Products = () => {
       const initialCtg = Number(editingProduct.chittagong || 0);
       const savedProduct = await api.saveProduct({
         ...editingProduct,
+        variations: [...new Set((editingProduct.variations || []).map(value => value.trim()).filter(Boolean))],
         dhaka: isNewProduct ? 0 : editingProduct.dhaka,
         chittagong: isNewProduct ? 0 : editingProduct.chittagong
       } as Product);
@@ -492,6 +493,25 @@ const Products = () => {
     if (!editingProduct) return;
     const slabs = (Array.isArray(editingProduct.slabs) ? editingProduct.slabs : []).filter((_, i) => i !== index);
     setEditingProduct({ ...editingProduct, slabs });
+  };
+
+  const addVariation = () => {
+    if (!editingProduct) return;
+    const variations = Array.isArray(editingProduct.variations) ? editingProduct.variations : [];
+    setEditingProduct({ ...editingProduct, variations: [...variations, ''] });
+  };
+
+  const updateVariation = (index: number, value: string) => {
+    if (!editingProduct) return;
+    const variations = [...(Array.isArray(editingProduct.variations) ? editingProduct.variations : [])];
+    variations[index] = value;
+    setEditingProduct({ ...editingProduct, variations });
+  };
+
+  const removeVariation = (index: number) => {
+    if (!editingProduct) return;
+    const variations = (Array.isArray(editingProduct.variations) ? editingProduct.variations : []).filter((_, i) => i !== index);
+    setEditingProduct({ ...editingProduct, variations });
   };
 
   const handleSaveStockEntry = async () => {
@@ -1079,6 +1099,30 @@ const Products = () => {
                     ))}
                   </div>
                 </div>
+              </div>
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Order Variations</Label>
+                    <p className="mt-1 text-xs text-slate-500">Optional choices available when adding this product to an order.</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={addVariation}>
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add Variation
+                  </Button>
+                </div>
+                {(editingProduct?.variations || []).map((variation, index) => (
+                  <div className="flex gap-2" key={index}>
+                    <Input
+                      value={variation}
+                      onChange={e => updateVariation(index, e.target.value)}
+                      placeholder={`Variation ${index + 1}`}
+                      aria-label={`Variation ${index + 1}`}
+                    />
+                    <Button type="button" variant="ghost" size="icon" className="shrink-0 text-red-400" onClick={() => removeVariation(index)} aria-label={`Remove variation ${index + 1}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
               <Button className="w-full bg-slate-900" onClick={handleSaveProduct}>Save Product</Button>
             </div>
