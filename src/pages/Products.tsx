@@ -1319,7 +1319,7 @@ const Products = () => {
             setEditingProduct(null);
           }
         }}>
-          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto overscroll-contain">
+          <DialogContent className="w-[calc(100vw-2rem)] max-h-[90vh] max-w-5xl overflow-y-auto overscroll-contain">
             <DialogHeader><DialogTitle>{editingProduct?.id ? 'Edit Product' : 'New Product'}</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2"><Label>Product Name</Label><Input value={editingProduct?.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} /></div>
