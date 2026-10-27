@@ -1549,6 +1549,8 @@ export default function NewOrder() {
                           removeItem={removeItem} 
                           addItem={addItem}
                           updateVariantAttribute={updateVariantAttribute}
+                          updateIndependentVariant={updateIndependentVariant}
+                          updateVariantSelectionQuantity={updateVariantSelectionQuantity}
                         />
                       ))}
                     </SortableContext>
