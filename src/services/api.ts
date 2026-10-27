@@ -970,24 +970,31 @@ export const api = {
         location: 'dhaka' | 'chittagong';
         quantity: number;
       }>();
-      const addVariantDelta = (item: Order['items'][number], quantity: number) => {
-        if (!item.variantId || !item.productId) return;
+      const addVariantDelta = (item: Order['items'][number], direction: 1 | -1) => {
+        if (!item.productId) return;
         const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
-        const key = `${item.productId}:${item.variantId}:${location}`;
-        const current = variantStockDeltas.get(key);
-        variantStockDeltas.set(key, {
-          productId: item.productId,
-          variantId: item.variantId,
-          location,
-          quantity: (current?.quantity || 0) + quantity
+        const selections = item.variantSelections?.length
+          ? item.variantSelections
+          : item.variantId
+            ? [{ variantId: item.variantId, quantity: item.quantity }]
+            : [];
+        selections.forEach(selection => {
+          const key = `${item.productId}:${selection.variantId}:${location}`;
+          const current = variantStockDeltas.get(key);
+          variantStockDeltas.set(key, {
+            productId: item.productId,
+            variantId: selection.variantId,
+            location,
+            quantity: (current?.quantity || 0) + direction * (Number(selection.quantity) || 0)
+          });
         });
       };
 
       if (oldOrderAffectsVariantStock) {
-        (existing.items || []).forEach(item => addVariantDelta(item, Number(item.quantity) || 0));
+        (existing.items || []).forEach(item => addVariantDelta(item, 1));
       }
       if (newOrderAffectsVariantStock) {
-        (order.items || []).forEach(item => addVariantDelta(item, -(Number(item.quantity) || 0)));
+        (order.items || []).forEach(item => addVariantDelta(item, -1));
       }
 
       await applyVariantStockDeltas([...variantStockDeltas.values()]);
@@ -1047,12 +1054,20 @@ export const api = {
       await removeRemote(KEYS.ORDERS, id);
 
       if (order.status === 'approved' && !order.isQuote) {
-        await applyVariantStockDeltas((order.items || []).map(item => ({
-          productId: item.productId,
-          variantId: item.variantId || '',
-          location: item.location === 'dhaka' ? 'dhaka' : 'chittagong',
-          quantity: Number(item.quantity) || 0
-        })));
+        const variantDeltas = (order.items || []).flatMap(item => {
+          const selections = item.variantSelections?.length
+            ? item.variantSelections
+            : item.variantId
+              ? [{ variantId: item.variantId, quantity: item.quantity }]
+              : [];
+          return selections.map(selection => ({
+            productId: item.productId,
+            variantId: selection.variantId,
+            location: item.location === 'dhaka' ? 'dhaka' as const : 'chittagong' as const,
+            quantity: Number(selection.quantity) || 0
+          }));
+        });
+        await applyVariantStockDeltas(variantDeltas);
       }
       
       // Update local storage immediately so syncProductStock sees the deletion

@@ -7,7 +7,7 @@ import { api } from '@/services/api';
 import { formatNumber, generateInvoiceHtml, printDoc } from '@/utils/invoice-generator';
 import { getTodayISO } from '@/utils/date';
 import { showSuccess, showError } from '@/utils/toast';
-import { Dealer, Officer, Product, ProductVariant, ProductVariantGroup, Order, Customization } from '@/types';
+import { Dealer, Officer, Product, ProductVariant, ProductVariantGroup, ProductVariantSelection, Order, Customization } from '@/types';
 import { Trash2, ChevronDown, ChevronUp, Plus, GripVertical, Download, FileText, X, RefreshCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
@@ -24,6 +24,7 @@ const emptyItem = () => ({
   legacyVariation: '',
   variantId: '',
   variantAttributes: {} as Record<string, string>,
+  variantSelections: [] as ProductVariantSelection[],
   quantity: 1,
   price: 0,
   total: 0,
@@ -38,6 +39,51 @@ const emptyItem = () => ({
 
 type OrderItemRow = ReturnType<typeof emptyItem>;
 
+const summarizeVariantSelections = (
+  item: OrderItemRow,
+  product: Product,
+  selections: ProductVariantSelection[]
+): OrderItemRow => {
+  const quantity = selections.reduce((sum, selection) => sum + selection.quantity, 0);
+  const total = selections.reduce((sum, selection) => sum + selection.price * selection.quantity, 0);
+  const commission = selections.reduce((sum, selection) => sum + selection.commission, 0);
+  const variation = selections.map(selection =>
+    Object.entries(selection.attributes)
+      .map(([groupId, option]) => {
+        const group = product.variantGroups?.find(candidate => candidate.id === groupId);
+        return `${group?.name || 'Option'}: ${option}`;
+      })
+      .join(' / ')
+  ).join(', ');
+
+  return {
+    ...item,
+    variantSelections: selections,
+    variantId: selections.length === 1 ? selections[0].variantId : '',
+    quantity: quantity || 1,
+    price: quantity ? total / quantity : product.retailPrice || 0,
+    total,
+    commission,
+    variation: [variation, item.legacyVariation].filter(Boolean).join(' / ')
+  };
+};
+
+const createVariantSelection = (
+  product: Product,
+  variant: ProductVariant,
+  quantity = 1
+): ProductVariantSelection => ({
+  variantId: variant.id,
+  attributes: { ...variant.attributes },
+  label: Object.entries(variant.attributes)
+    .map(([groupId, option]) => `${product.variantGroups?.find(group => group.id === groupId)?.name || 'Option'}: ${option}`)
+    .join(' / '),
+  quantity,
+  price: Number(variant.price) || 0,
+  commission: Math.max(0, (Number(product.commission) || 0) + (Number(variant.commissionAdjustment) || 0)) * quantity,
+  commissionAdjustment: Number(variant.commissionAdjustment) || 0
+});
+
 interface SortableItemProps {
   item: OrderItemRow;
   index: number;
@@ -46,6 +92,8 @@ interface SortableItemProps {
   inventorySource: 'dhaka' | 'chittagong' | 'mixed';
   updateItem: (index: number, field: keyof OrderItemRow, value: string | number) => void;
   updateVariantAttribute: (index: number, groupId: string, value: string) => void;
+  updateIndependentVariant: (index: number, variant: ProductVariant, selected: boolean) => void;
+  updateVariantSelectionQuantity: (index: number, variantId: string, quantity: number) => void;
   removeItem: (index: number) => void;
   addItem: () => void;
 }
@@ -67,7 +115,7 @@ const StockBadge = ({ dhaka, chittagong }: { dhaka: number; chittagong: number }
   </div>
 );
 
-const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, updateVariantAttribute, removeItem, addItem }: SortableItemProps) => {
+const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, updateVariantAttribute, updateIndependentVariant, updateVariantSelectionQuantity, removeItem, addItem }: SortableItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   
   const style = {
@@ -98,31 +146,101 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
 
   const selectedProduct = item.productId ? products.find(product => product.id === item.productId) : undefined;
   const variantGroups: ProductVariantGroup[] = selectedProduct?.variantGroups || [];
-  const selectedVariant = variantGroups.length && variantGroups.every(group => item.variantAttributes?.[group.id])
-    ? (selectedProduct?.variants || []).find((variant: ProductVariant) =>
-        variantGroups.every(group => variant.attributes?.[group.id] === item.variantAttributes?.[group.id])
-      )
-    : undefined;
+  const independentGroups = variantGroups.filter(group => group.independent);
+  const combinationGroups = variantGroups.filter(group => !group.independent);
+  const selectedVariants = item.variantSelections || [];
+  const selectedCombination = selectedVariants.find(selection =>
+    combinationGroups.length > 0
+    && combinationGroups.every(group => !!selection.attributes[group.id])
+    && Object.keys(selection.attributes).length === combinationGroups.length
+  );
 
   const renderVariantSelectors = (compact: boolean) => variantGroups.length
-    ? variantGroups.map(group => (
-      <div key={group.id}>
-        <label className="mt-1 block text-[9px] font-bold text-slate-500">{group.name}</label>
-        <select
-          value={item.variantAttributes?.[group.id] || ''}
-          onChange={e => updateVariantAttribute(index, group.id, e.target.value)}
-          disabled={!selectedProduct}
-          className={cn(
-            "w-full border border-slate-200 bg-white rounded-lg outline-none focus:border-blue-400 disabled:bg-slate-50",
-            compact ? "mt-1 px-2 py-1.5 text-xs" : "mt-1.5 px-3 py-1.5 text-xs"
-          )}
-          aria-label={`${group.name} option`}
-        >
-          <option value="">Select {group.name}</option>
-          {(group.options || []).map(option => <option key={option} value={option}>{option}</option>)}
-        </select>
+    ? (
+      <div className="space-y-2">
+        {independentGroups.map(group => (
+          <div className="rounded-lg border border-slate-100 p-2" key={group.id}>
+            <label className="block text-[9px] font-bold text-slate-500">{group.name} · Select independently</label>
+            <div className="mt-1 space-y-1">
+              {group.options.map(option => {
+                const variant = selectedProduct?.variants?.find(candidate =>
+                  Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === option
+                );
+                const selection = selectedVariants.find(selected => selected.variantId === variant?.id);
+                return (
+                  <div className="flex items-center gap-2 text-xs" key={option}>
+                    <input
+                      type="checkbox"
+                      checked={!!selection}
+                      disabled={!variant}
+                      onChange={e => variant && updateIndependentVariant(index, variant, e.target.checked)}
+                      aria-label={`Select ${group.name} ${option}`}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{option}</span>
+                    <span className="text-[10px] text-slate-500">
+                      {variant?.price ?? 0} · Stock {variant?.[inventorySource === 'mixed' ? item.location : inventorySource] ?? 0}
+                    </span>
+                    {selection && (
+                      <input
+                        type="number"
+                        min="1"
+                        value={selection.quantity}
+                        onChange={e => variant && updateVariantSelectionQuantity(index, variant.id, Number(e.target.value))}
+                        className={cn("w-14 rounded border border-slate-200 px-1 py-1 text-right", compact ? "text-xs" : "text-sm")}
+                        aria-label={`Quantity for ${group.name} ${option}`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {combinationGroups.map(group => {
+          const combinationVariants = (selectedProduct?.variants || []).filter(variant =>
+            combinationGroups.every(combinationGroup => !!variant.attributes[combinationGroup.id])
+            && Object.keys(variant.attributes).length === combinationGroups.length
+          );
+          return (
+            <div key={group.id}>
+              <label className="mt-1 block text-[9px] font-bold text-slate-500">{group.name} · Combination</label>
+              <select
+                value={selectedCombination?.attributes[group.id] || ''}
+                onChange={e => updateVariantAttribute(index, group.id, e.target.value)}
+                disabled={!selectedProduct}
+                className={cn(
+                  "w-full border border-slate-200 bg-white rounded-lg outline-none focus:border-blue-400 disabled:bg-slate-50",
+                  compact ? "mt-1 px-2 py-1.5 text-xs" : "mt-1.5 px-3 py-1.5 text-xs"
+                )}
+                aria-label={`${group.name} combination option`}
+              >
+                <option value="">Select {group.name}</option>
+                {[...new Set(combinationVariants.map(variant => variant.attributes[group.id]))].map(option =>
+                  <option key={option} value={option}>{option}</option>
+                )}
+              </select>
+            </div>
+          );
+        })}
+        {selectedCombination && (
+          <div className="flex items-center gap-2 text-[10px] text-slate-600">
+            <span className="flex-1">
+              {combinationGroups.map(group => `${group.name}: ${selectedCombination.attributes[group.id]}`).join(' / ')}
+              {' · '}{selectedCombination.price}
+            </span>
+            <label>Qty</label>
+            <input
+              type="number"
+              min="1"
+              value={selectedCombination.quantity}
+              onChange={e => selectedCombination && updateVariantSelectionQuantity(index, selectedCombination.variantId, Number(e.target.value))}
+              className="w-14 rounded border border-slate-200 px-1 py-1 text-right"
+              aria-label="Combination quantity"
+            />
+          </div>
+        )}
       </div>
-    ))
+    )
     : null;
 
   const renderLegacyVariationSelector = (compact: boolean) => selectedProduct?.variations?.length
@@ -215,11 +333,6 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           />
           {renderVariantSelectors(false)}
           {renderLegacyVariationSelector(false)}
-          {selectedVariant && (
-            <div className="mt-1 text-[10px] font-semibold text-slate-500">
-              Option stock: DHK {selectedVariant.dhaka || 0} / CTG {selectedVariant.chittagong || 0}
-            </div>
-          )}
           {showSuggestions && (
             <div style={dropdownStyle} onMouseDown={e => e.preventDefault()}>
               <div className="max-h-72 overflow-y-auto">
@@ -248,17 +361,21 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
         </div>
         <div>
           <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider">Qty</label>
-          <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-sm font-black rounded-xl text-center outline-none focus:bg-white focus:border-blue-400 transition-all" />
+        {variantGroups.length
+          ? <div className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2 text-center text-sm font-black">{selectedVariants.reduce((sum, selection) => sum + selection.quantity, 0)}</div>
+          : <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-sm font-black rounded-xl text-center outline-none focus:bg-white focus:border-blue-400 transition-all" />}
         </div>
         <div>
-          <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">Unit Price</label>
-          <input 
-            type="number" 
-            value={item.price} 
-            onChange={e => updateItem(index, 'price', Number(e.target.value))} 
-            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addItem())}
-            className={cn("w-full border px-3 py-2 text-sm font-black rounded-xl text-right outline-none focus:ring-4 transition-all", item.priceIncrease > 0 ? "bg-emerald-50 border-emerald-200 focus:ring-emerald-500/5" : "bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-blue-500/5")} 
-          />
+        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">Unit Price</label>
+        {variantGroups.length
+          ? <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-right text-sm font-black">{formatNumber(item.price)}</div>
+          : <input
+          type="number"
+          value={item.price}
+          onChange={e => updateItem(index, 'price', Number(e.target.value))}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addItem())}
+          className={cn("w-full border px-3 py-2 text-sm font-black rounded-xl text-right outline-none focus:ring-4 transition-all", item.priceIncrease > 0 ? "bg-emerald-50 border-emerald-200 focus:ring-emerald-500/5" : "bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-blue-500/5")}
+        />}
         </div>
         <div>
           <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">Branch</label>
@@ -275,7 +392,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
         {orderType === 'dealer' && (
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">Com.</label>
-            <input type="number" value={item.commission} onChange={e => updateItem(index, 'commission', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-sm font-black rounded-xl text-right outline-none focus:bg-white transition-all" />
+            {variantGroups.length
+              ? <div className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2 text-right text-sm font-black">{formatNumber(item.commission)}</div>
+              : <input type="number" value={item.commission} onChange={e => updateItem(index, 'commission', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-sm font-black rounded-xl text-right outline-none focus:bg-white transition-all" />}
           </div>
         )}
         <div>
@@ -350,22 +469,21 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             </label>
             {renderVariantSelectors(true)}
             {renderLegacyVariationSelector(true)}
-            {selectedVariant && (
-              <div className="mt-1 text-[9px] font-semibold text-slate-500">
-                Stock: DHK {selectedVariant.dhaka || 0} / CTG {selectedVariant.chittagong || 0}
-              </div>
-            )}
           </div>
         )}
 
         <div className={cn("grid gap-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
           <div>
             <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">Qty</label>
-            <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-center outline-none" />
+            {variantGroups.length
+              ? <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-center text-xs font-bold">{selectedVariants.reduce((sum, selection) => sum + selection.quantity, 0)}</div>
+              : <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-center outline-none" />}
           </div>
           <div>
             <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">Price</label>
-            <input
+            {variantGroups.length
+              ? <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-right text-xs font-bold">{formatNumber(item.price)}</div>
+              : <input
               type="number"
               value={item.price}
               onChange={e => updateItem(index, 'price', Number(e.target.value))}
@@ -374,7 +492,7 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                 "w-full border px-2 py-1 text-xs rounded-lg text-right outline-none",
                 item.priceIncrease > 0 ? "bg-emerald-50 border-emerald-200" : "bg-white border-slate-200"
               )}
-            />
+            />}
           </div>
           <div>
             <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">Source</label>
@@ -391,7 +509,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           {orderType === 'dealer' && (
             <div>
               <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">Comm.</label>
-              <input type="number" value={item.commission} onChange={e => updateItem(index, 'commission', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-right outline-none" />
+              {variantGroups.length
+                ? <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-right text-xs font-bold">{formatNumber(item.commission)}</div>
+                : <input type="number" value={item.commission} onChange={e => updateItem(index, 'commission', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-right outline-none" />}
             </div>
           )}
         </div>
@@ -599,6 +719,21 @@ export default function NewOrder() {
       const allProducts = Array.isArray(effectiveProducts) ? effectiveProducts : [];
       const product = allProducts.find(p => p && p.id === item.productId);
       const variant = product?.variants?.find(candidate => candidate.id === item.variantId);
+      const variantSelections = item.variantSelections?.length
+        ? item.variantSelections.map(selection => ({
+            ...selection,
+            label: selection.label || Object.entries(selection.attributes)
+              .map(([groupId, option]) => `${product?.variantGroups?.find(group => group.id === groupId)?.name || 'Option'}: ${option}`)
+              .join(' / ')
+          }))
+        : variant
+          ? [{
+              ...createVariantSelection(product!, variant, item.quantity || 1),
+              price: item.price || Number(variant.price) || 0,
+              commission: Number(item.commission) || 0,
+              commissionAdjustment: Number(item.commissionAdjustment ?? variant.commissionAdjustment) || 0
+            }]
+          : [];
       const retailPrice = variant?.price ?? product?.retailPrice ?? (item.basePrice || item.price || 0);
       const commissionPerUnit = variant
         ? Math.max(0, (Number(product?.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
@@ -613,6 +748,7 @@ export default function NewOrder() {
         variation: item.variation || '',
         variantId: item.variantId || '',
         variantAttributes: item.variantAttributes || {},
+        variantSelections,
         legacyVariation: item.variantId ? '' : (item.variation || ''),
         quantity: item.quantity || 1,
         price: item.price || 0,
@@ -661,8 +797,12 @@ export default function NewOrder() {
           .map(group => `${group.name}: ${updated.variantAttributes[group.id] || ''}`)
           .filter(label => !label.endsWith(': '))
           .join(' / ');
+        const selectedOptionLabels = (updated.variantSelections || [])
+          .map(selection => selection.label)
+          .filter((label): label is string => !!label)
+          .join(', ');
         updated.legacyVariation = String(value);
-        updated.variation = [groupLabel, String(value)].filter(Boolean).join(' / ');
+        updated.variation = [selectedOptionLabels || groupLabel, String(value)].filter(Boolean).join(' / ');
       } else if (field === 'variation') {
         updated.legacyVariation = String(value);
       }
@@ -678,6 +818,7 @@ export default function NewOrder() {
             updated.legacyVariation = '';
             updated.variantId = '';
             updated.variantAttributes = {};
+            updated.variantSelections = [];
             updated.commissionAdjustment = 0;
           }
           updated.productId = product.id;
@@ -734,39 +875,64 @@ export default function NewOrder() {
       if (itemIndex !== index) return item;
       const product = products.find(candidate => candidate.id === item.productId);
       if (!product) return item;
-
-      const variantAttributes = { ...item.variantAttributes, [groupId]: value };
-      const variantGroups = product.variantGroups || [];
-      const completeSelection = variantGroups.every(group => !!variantAttributes[group.id]);
+      const combinationGroups = (product.variantGroups || []).filter(group => !group.independent);
+      const combinationGroupIds = combinationGroups.map(group => group.id);
+      const variantAttributes = { ...item.variantAttributes };
+      if (value) variantAttributes[groupId] = value;
+      else delete variantAttributes[groupId];
+      const completeSelection = combinationGroups.every(group => !!variantAttributes[group.id]);
       const variant = completeSelection
-        ? (product.variants || []).find(candidate =>
-            variantGroups.every(group => candidate.attributes[group.id] === variantAttributes[group.id])
+        ? product.variants?.find(candidate =>
+            Object.keys(candidate.attributes).length === combinationGroupIds.length
+            && combinationGroups.every(group => candidate.attributes[group.id] === variantAttributes[group.id])
           )
         : undefined;
-      const quantity = Number(item.quantity) || 0;
-      const baseCommissionPerUnit = variant
-        ? Math.max(0, (Number(product.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
-        : Number(product.commission) || 0;
-      const variation = variant
-        ? [
-            variantGroups.map(group => `${group.name}: ${variant.attributes[group.id]}`).join(' / '),
-            item.legacyVariation
-          ].filter(Boolean).join(' / ')
-        : '';
-
+      const currentSelections = (item.variantSelections || []).filter(selection =>
+        !combinationGroupIds.some(combinationGroupId => selection.attributes[combinationGroupId])
+      );
+      if (variant) currentSelections.push(createVariantSelection(product, variant));
+      const updated = summarizeVariantSelections(item, product, currentSelections);
       return {
-        ...item,
+        ...updated,
         variantAttributes,
-        variantId: variant?.id || '',
-        variation,
-        commissionAdjustment: Number(variant?.commissionAdjustment) || 0,
-        price: variant ? Number(variant.price) || 0 : item.price,
-        basePrice: variant ? Number(variant.price) || 0 : product.retailPrice || 0,
-        baseCommissionPerUnit,
-        commission: baseCommissionPerUnit * quantity,
-        total: quantity * (variant ? Number(variant.price) || 0 : item.price),
+        basePrice: variant?.price ?? product.retailPrice ?? 0,
         priceIncrease: 0
       };
+    }));
+  };
+
+  const updateIndependentVariant = (index: number, variant: ProductVariant, selected: boolean) => {
+    setItems(prev => prev.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const product = products.find(candidate => candidate.id === item.productId);
+      if (!product) return item;
+      const currentSelections = (item.variantSelections || []).filter(selection =>
+        selection.variantId !== variant.id
+      );
+      if (selected) currentSelections.push(createVariantSelection(product, variant));
+      return summarizeVariantSelections(item, product, currentSelections);
+    }));
+  };
+
+  const updateVariantSelectionQuantity = (index: number, variantId: string, quantity: number) => {
+    setItems(prev => prev.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const product = products.find(candidate => candidate.id === item.productId);
+      if (!product) return item;
+      const nextQuantity = Math.max(1, Number.isFinite(quantity) ? Math.floor(quantity) : 1);
+      const currentSelections = (item.variantSelections || []).map(selection => {
+        if (selection.variantId !== variantId) return selection;
+        const variant = product.variants?.find(candidate => candidate.id === variantId);
+        const commissionPerUnit = variant
+          ? Math.max(0, (Number(product.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
+          : selection.commission / Math.max(1, selection.quantity);
+        return {
+          ...selection,
+          quantity: nextQuantity,
+          commission: commissionPerUnit * nextQuantity
+        };
+      });
+      return summarizeVariantSelections(item, product, currentSelections);
     }));
   };
 
@@ -840,10 +1006,12 @@ export default function NewOrder() {
             quantity: (baseRequirement?.quantity || 0) + (Number(item.quantity) || 0)
           });
 
-          if (product.variantGroups?.length && !item.variantId) {
+          const itemSelections = item.variantSelections || [];
+          if (product.variantGroups?.length && !itemSelections.length && !item.variantId) {
             const unchangedLegacyItem = originalOrder?.items.some(originalItem =>
               originalItem.productId === item.productId
               && !originalItem.variantId
+              && !originalItem.variantSelections?.length
               && originalItem.variation === item.variation
               && originalItem.location === location
             );
@@ -853,8 +1021,11 @@ export default function NewOrder() {
             }
           }
 
-          if (item.variantId) {
-            const variant = product.variants?.find(candidate => candidate.id === item.variantId);
+          const selectedVariantQuantities = itemSelections.length
+            ? itemSelections.map(selection => ({ variantId: selection.variantId, quantity: selection.quantity }))
+            : item.variantId ? [{ variantId: item.variantId, quantity: item.quantity }] : [];
+          for (const selection of selectedVariantQuantities) {
+            const variant = product.variants?.find(candidate => candidate.id === selection.variantId);
             if (!variant) {
               setSaving(false);
               return showError(`The selected option for "${item.productName}" is no longer available. Refresh the product options and try again.`);
@@ -865,7 +1036,7 @@ export default function NewOrder() {
               product,
               variantId: variant.id,
               location,
-              quantity: (variantRequirement?.quantity || 0) + (Number(item.quantity) || 0)
+              quantity: (variantRequirement?.quantity || 0) + (Number(selection.quantity) || 0)
             });
           }
         }
@@ -894,10 +1065,18 @@ export default function NewOrder() {
           ? (originalOrder?.items || [])
               .filter(originalItem =>
                 originalItem.productId === product.id
-                && originalItem.variantId === variantId
                 && originalItem.location === location
               )
-              .reduce((sum, originalItem) => sum + (Number(originalItem.quantity) || 0), 0)
+              .reduce((sum, originalItem) => {
+                const selections = originalItem.variantSelections?.length
+                  ? originalItem.variantSelections
+                  : originalItem.variantId
+                    ? [{ variantId: originalItem.variantId, quantity: originalItem.quantity }]
+                    : [];
+                return sum + selections
+                  .filter(selection => selection.variantId === variantId)
+                  .reduce((selectionSum, selection) => selectionSum + (Number(selection.quantity) || 0), 0);
+              }, 0)
           : 0;
         if (quantity > available + reservedQty) {
           setSaving(false);
@@ -925,6 +1104,7 @@ export default function NewOrder() {
         variantId: i.variantId || undefined,
         variantAttributes: Object.keys(i.variantAttributes).length ? i.variantAttributes : undefined,
         commissionAdjustment: i.commissionAdjustment,
+        variantSelections: i.variantSelections.length ? i.variantSelections : undefined,
         quantity: i.quantity,
         basePrice: i.basePrice,
         price: i.price,
@@ -986,11 +1166,15 @@ export default function NewOrder() {
           location: item.location,
           quantity: (currentBase?.quantity || 0) + (Number(item.quantity) || 0)
         });
-        if (product.variantGroups?.length && !item.variantId) {
+        const itemSelections = item.variantSelections || [];
+        if (product.variantGroups?.length && !itemSelections.length && !item.variantId) {
           return showError(`Select all options for "${item.productName}" before downloading the quote.`);
         }
-        if (item.variantId) {
-          const variant = product.variants?.find(candidate => candidate.id === item.variantId);
+        const selectedVariantQuantities = itemSelections.length
+          ? itemSelections.map(selection => ({ variantId: selection.variantId, quantity: selection.quantity }))
+          : item.variantId ? [{ variantId: item.variantId, quantity: item.quantity }] : [];
+        for (const selection of selectedVariantQuantities) {
+          const variant = product.variants?.find(candidate => candidate.id === selection.variantId);
           if (!variant) return showError(`The selected option for "${item.productName}" is no longer available.`);
           const variantKey = `${product.id}:${variant.id}:${item.location}`;
           const currentVariant = variantQuantities.get(variantKey);
@@ -998,7 +1182,7 @@ export default function NewOrder() {
             product,
             variantId: variant.id,
             location: item.location,
-            quantity: (currentVariant?.quantity || 0) + (Number(item.quantity) || 0)
+            quantity: (currentVariant?.quantity || 0) + (Number(selection.quantity) || 0)
           });
         }
       }
@@ -1053,6 +1237,7 @@ export default function NewOrder() {
       variantId: i.variantId || undefined,
       variantAttributes: Object.keys(i.variantAttributes).length ? i.variantAttributes : undefined,
       commissionAdjustment: i.commissionAdjustment,
+      variantSelections: i.variantSelections.length ? i.variantSelections : undefined,
       quantity: i.quantity,
       basePrice: i.basePrice,
       price: i.price,

@@ -37,17 +37,27 @@ export function generateInvoiceHtml(order: Order, isQuoteDoc: boolean, settings:
   const showExecName = !!settings?.execName && settings.execName.trim().toLowerCase() !== 'administrator';
   const showExecDetails = !!settings?.execDetails && settings.execDetails.trim().toLowerCase() !== 'head of operations';
 
-  const itemRows = items.map((item, i) => {
+  const invoiceItems = items.flatMap(item => item.variantSelections?.length
+    ? item.variantSelections.map((selection, index) => ({
+        ...item,
+        variation: selection.label || item.variation,
+        price: selection.price,
+        quantity: selection.quantity,
+        total: selection.price * selection.quantity,
+        serialNumbers: index === 0 ? item.serialNumbers : []
+      }))
+    : [item]);
+  const itemRows = invoiceItems.map((item, i) => {
     const variationLine = item.variation?.trim()
       ? `<br/><span style="font-size:14px;color:#444;">Variation: ${escapeHtml(item.variation.trim())}</span>`
       : '';
-    const serialLine = showSerials && item.serialNumbers && item.serialNumbers.length > 0 
-      ? `<br/><span style="font-size:14px;color:#444;font-style:italic;">S/N: ${item.serialNumbers.join(', ')}</span>` 
+    const serialLine = showSerials && item.serialNumbers && item.serialNumbers.length > 0
+      ? `<br/><span style="font-size:14px;color:#444;font-style:italic;">S/N: ${escapeHtml(item.serialNumbers.join(', '))}</span>`
       : '';
     return `
       <tr>
         <td style="border:1px solid #777;padding:5px 7px;text-align:center;">${i + 1}.</td>
-        <td style="border:1px solid #777;padding:5px 7px;">${item.productName || ''}${variationLine}${serialLine}</td>
+        <td style="border:1px solid #777;padding:5px 7px;">${escapeHtml(item.productName || '')}${variationLine}${serialLine}</td>
         <td style="border:1px solid #777;padding:5px 7px;text-align:right;">${formatNumber(item.price)}</td>
         <td style="border:1px solid #777;padding:5px 7px;text-align:right;">${item.quantity}</td>
         <td style="border:1px solid #777;padding:5px 7px;text-align:right;">${formatNumber(item.total)}</td>

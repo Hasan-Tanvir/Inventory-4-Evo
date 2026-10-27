@@ -60,6 +60,7 @@ export interface ProductVariantGroup {
   id: string;
   name: string;
   options: string[];
+  independent?: boolean;
 }
 
 export interface ProductVariant {
@@ -68,6 +69,16 @@ export interface ProductVariant {
   dhaka: number;
   chittagong: number;
   price: number;
+  commissionAdjustment: number;
+}
+
+export interface ProductVariantSelection {
+  variantId: string;
+  attributes: Record<string, string>;
+  label?: string;
+  quantity: number;
+  price: number;
+  commission: number;
   commissionAdjustment: number;
 }
 
@@ -103,6 +114,7 @@ export interface OrderItem {
   variantId?: string;
   variantAttributes?: Record<string, string>;
   commissionAdjustment?: number;
+  variantSelections?: ProductVariantSelection[];
   quantity: number;
   basePrice?: number;
   price: number;

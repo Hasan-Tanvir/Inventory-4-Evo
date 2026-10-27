@@ -98,29 +98,34 @@ const buildVariantCombinations = (
   if (!configuredGroups.length) return [];
   if (configuredGroups.some(group => !group.options.length)) return existingVariants;
 
-  let combinations: Record<string, string>[] = [{}];
-  configuredGroups.forEach(group => {
-    combinations = combinations.flatMap(attributes =>
-      group.options.map(option => ({ ...attributes, [group.id]: option }))
-    );
-  });
+  const independentGroups = configuredGroups.filter(group => group.independent);
+  const combinationGroups = configuredGroups.filter(group => !group.independent);
+  const buildCombinations = (optionGroups: ProductVariantGroup[]) => {
+    let combinations: Record<string, string>[] = [{}];
+    optionGroups.forEach(group => {
+      combinations = combinations.flatMap(attributes =>
+        group.options.map(option => ({ ...attributes, [group.id]: option }))
+      );
+    });
+    return combinations;
+  };
+  const desiredAttributes = [
+    ...independentGroups.flatMap(group => group.options.map(option => ({ [group.id]: option }))),
+    ...(combinationGroups.length ? buildCombinations(combinationGroups) : [])
+  ];
 
-  return combinations.map(attributes => {
-    const currentGroupIds = new Set(configuredGroups.map(group => group.id));
-    const existingGroupIds = new Set(existingVariants.flatMap(variant => Object.keys(variant.attributes || {})));
-    const addingGroup = [...currentGroupIds].some(groupId => !existingGroupIds.has(groupId));
-    const matchingVariants = existingVariants.filter(variant =>
-      [...currentGroupIds].some(groupId => variant.attributes?.[groupId] === attributes[groupId])
-      && Object.entries(variant.attributes || {}).every(([groupId, option]) =>
-        !currentGroupIds.has(groupId) || attributes[groupId] === option
-      )
-    );
-    const existing = matchingVariants[0];
+  return desiredAttributes.map(attributes => {
+    const attributeIds = Object.keys(attributes).sort();
+    const existing = existingVariants.find(variant => {
+      const existingIds = Object.keys(variant.attributes || {}).sort();
+      return attributeIds.length === existingIds.length
+        && attributeIds.every(groupId => variant.attributes[groupId] === attributes[groupId]);
+    });
     return {
       id: existing?.id || createVariantId(),
       attributes,
-      dhaka: addingGroup ? 0 : matchingVariants.reduce((sum, variant) => sum + (Number(variant.dhaka) || 0), 0),
-      chittagong: addingGroup ? 0 : matchingVariants.reduce((sum, variant) => sum + (Number(variant.chittagong) || 0), 0),
+      dhaka: Number(existing?.dhaka) || 0,
+      chittagong: Number(existing?.chittagong) || 0,
       price: existing ? Number(existing.price) || 0 : defaultPrice,
       commissionAdjustment: existing ? Number(existing.commissionAdjustment) || 0 : 0
     };
@@ -415,8 +420,20 @@ const Products = () => {
         const oldChittagong = (previousProduct.variants || []).reduce((sum, variant) => sum + (Number(variant.chittagong) || 0), 0);
         const newDhaka = (editingProduct.variants || []).reduce((sum, variant) => sum + (Number(variant.dhaka) || 0), 0);
         const newChittagong = (editingProduct.variants || []).reduce((sum, variant) => sum + (Number(variant.chittagong) || 0), 0);
-        if ((newDhaka < oldDhaka || newChittagong < oldChittagong)
-          && !confirm('This change reduces recorded option stock. Continue only if this stock was intentionally removed or reallocated.')) {
+        const getAttributesKey = (variant: ProductVariant) =>
+          JSON.stringify(Object.entries(variant.attributes || {}).sort(([a], [b]) => a.localeCompare(b)));
+        const newVariantKeys = new Set((editingProduct.variants || []).map(getAttributesKey));
+        const removesConfiguredOptionData = (previousProduct.variants || []).some(variant =>
+          !newVariantKeys.has(getAttributesKey(variant))
+          && (
+            (Number(variant.dhaka) || 0) > 0
+            || (Number(variant.chittagong) || 0) > 0
+            || (Number(variant.price) || 0) !== (Number(previousProduct.retailPrice) || 0)
+            || (Number(variant.commissionAdjustment) || 0) !== 0
+          )
+        );
+        if ((newDhaka < oldDhaka || newChittagong < oldChittagong || removesConfiguredOptionData)
+          && !confirm('This change removes or restructures saved option prices, stock or commission settings. Continue only if you intend to remove or reallocate that data.')) {
           return;
         }
       }
@@ -629,6 +646,13 @@ const Products = () => {
     if (!editingProduct) return;
     const groups = [...(editingProduct.variantGroups || [])];
     groups[index] = { ...groups[index], name };
+    updateVariantGroups(groups);
+  };
+
+  const updateVariantGroupIndependent = (index: number, independent: boolean) => {
+    if (!editingProduct) return;
+    const groups = [...(editingProduct.variantGroups || [])];
+    groups[index] = { ...groups[index], independent };
     updateVariantGroups(groups);
   };
 
@@ -1272,14 +1296,14 @@ const Products = () => {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <Label>Product Options</Label>
-                    <p className="mt-1 text-xs text-slate-500">Add groups such as Color or Size. Separate options with commas. Option stock is a per-combination limit within the product's total branch stock.</p>
+                    <p className="mt-1 text-xs text-slate-500">Add groups such as Color or Size. Mark a group independent to select options separately. Option stock is a limit within the product's total branch stock.</p>
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={addVariantGroup}>
                     <Plus className="mr-1 h-3.5 w-3.5" /> Add Group
                   </Button>
                 </div>
                 {(editingProduct?.variantGroups || []).map((group, index) => (
-                  <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-2" key={group.id}>
+                  <div className="grid gap-2 rounded-md bg-slate-50 p-2 md:grid-cols-[1fr_2fr_auto]" key={group.id}>
                     <Input
                       value={group.name}
                       onChange={e => updateVariantGroupName(index, e.target.value)}
@@ -1296,15 +1320,24 @@ const Products = () => {
                       placeholder="Options (e.g. Red, Blue)"
                       aria-label={`Options for ${group.name || `group ${index + 1}`}`}
                     />
-                    <Button type="button" variant="ghost" size="icon" className="text-red-400" onClick={() => removeVariantGroup(index)} aria-label={`Remove option group ${index + 1}`}>
+                    <Button type="button" variant="ghost" size="icon" className="justify-self-end text-red-400" onClick={() => removeVariantGroup(index)} aria-label={`Remove option group ${index + 1}`}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                    <label className="flex items-center gap-2 text-xs text-slate-700 md:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={!!group.independent}
+                        onChange={e => updateVariantGroupIndependent(index, e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      Independent options (not combined with other groups)
+                    </label>
                   </div>
                 ))}
                 {(editingProduct?.variants || []).length > 0
                   && (editingProduct?.variantGroups || []).every(group => group.name.trim() && group.options.length > 0) && (
                   <div className="space-y-2 border-t pt-3">
-                    <p className="text-xs text-slate-500">Each combination has its own price, branch stock and commission adjustment. New groups start with zero stock; removing a group combines its stock. Review prices and stock when changing options.</p>
+                    <p className="text-xs text-slate-500">Independent options are separate selections; unchecked groups combine with each other. Each option has its own price, branch stock and commission adjustment. Changing a group’s mode may reset option values, so review prices, stock and commission.</p>
                     <div className="overflow-x-auto">
                       <div className="min-w-[580px]">
                         <div className="grid grid-cols-[minmax(120px,1.4fr)_repeat(4,minmax(70px,1fr))] gap-2 px-1 text-[10px] font-bold uppercase text-slate-500">
