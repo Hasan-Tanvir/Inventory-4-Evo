@@ -43,7 +43,7 @@ type OrderType = 'dealer' | 'retail';
 const getProductBasePrice = (product: Product, orderType: OrderType, quantity: number) => {
   if (orderType === 'retail') return Number(product.retailPrice) || 0;
   const slab = (product.slabs || []).find(candidate => quantity >= candidate.min && quantity <= candidate.max);
-  return slab ? Number(slab.price) || 0 : Number(product.dealerPrice) || 0;
+  return slab ? Number(slab.price) || 0 : 0;
 };
 
 const getVariantOptionPrice = (variant: ProductVariant, orderType: OrderType) => orderType === 'retail'

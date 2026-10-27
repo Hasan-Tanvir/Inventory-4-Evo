@@ -178,7 +178,7 @@ const SortableProductRow = ({ p, canDrag, getProductSlabText, setEditingProduct,
         </Badge>
       </TableCell>
       <TableCell className="text-xs">
-        <div>Dealer: {p.dealerPrice || 0} · Retail: {p.retailPrice}</div>
+        <div>Retail: {p.retailPrice}</div>
         <div>Commission/Unit: {p.commission || 0}</div>
         <div className="text-slate-500 truncate max-w-[280px]" title={getProductSlabText(p.id)}>
           Slabs: {getProductSlabText(p.id)}
@@ -248,7 +248,7 @@ const ProductCard = ({ p, canDrag, getProductSlabText, setEditingProduct, delete
           </div>
         </div>
         <div className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black tracking-tight border border-blue-100 shrink-0">
-          Dealer: {p.dealerPrice || 0} · Retail: {p.retailPrice}
+          Retail: {p.retailPrice}
         </div>
       </div>
 
@@ -404,9 +404,8 @@ const Products = () => {
 
   const handleSaveProduct = async () => {
     if (editingProduct && editingProduct.name) {
-      if (!Number.isFinite(Number(editingProduct.dealerPrice ?? 0)) || Number(editingProduct.dealerPrice ?? 0) < 0
-        || !Number.isFinite(Number(editingProduct.retailPrice)) || Number(editingProduct.retailPrice) < 0) {
-        showError('Dealer and retail prices must be valid non-negative numbers.');
+      if (!Number.isFinite(Number(editingProduct.retailPrice)) || Number(editingProduct.retailPrice) < 0) {
+        showError('Retail price must be a valid non-negative number.');
         return;
       }
       if ((editingProduct.variantGroups || []).some(group => !group.name.trim() || !group.options.length)) {
@@ -453,7 +452,6 @@ const Products = () => {
       const initialCtg = Number(editingProduct.chittagong || 0);
       const savedProduct = await api.saveProduct({
         ...editingProduct,
-        dealerPrice: Number(editingProduct.dealerPrice) || 0,
         variations: [...new Set((editingProduct.variations || []).map(value => value.trim()).filter(Boolean))],
         variantGroups: (editingProduct.variantGroups || [])
           .map(group => ({
@@ -1028,7 +1026,7 @@ const Products = () => {
               <Button variant="outline" onClick={() => setShowCategoryManager(true)} className="h-11 w-full sm:w-auto"><Tags className="w-4 h-4 mr-2" /> Categories</Button>
               <Button variant="outline" onClick={() => setShowStockEntryDialog(true)} className="h-11 w-full sm:w-auto"><Warehouse className="w-4 h-4 mr-2" /> Stock Entry</Button>
               <Button variant="outline" onClick={() => setShowStockTransferDialog(true)} className="h-11 w-full sm:w-auto"><ArrowRightLeft className="w-4 h-4 mr-2" /> Stock Transfer</Button>
-              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', dealerPrice: 0, retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [], variantGroups: [], variants: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+              <Button onClick={() => setEditingProduct({ name: '', version: '', categoryId: '', retailPrice: 0, commission: 0, status: 'active', dhaka: 0, chittagong: 0, slabs: [], variantGroups: [], variants: [] })} className="h-11 w-full sm:w-auto bg-slate-900"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
             </div>
           </div>
           {isMobile && activeView === 'products' && (
@@ -1255,11 +1253,7 @@ const Products = () => {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-                <div className="space-y-2">
-                  <Label>Dealer Price</Label>
-                  <Input type="number" min="0" value={editingProduct?.dealerPrice || 0} onChange={e => setEditingProduct({...editingProduct, dealerPrice: Number(e.target.value)})} />
-                </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label>Retail Price</Label>
                   <Input type="number" min="0" value={editingProduct?.retailPrice || 0} onChange={e => setEditingProduct({...editingProduct, retailPrice: Number(e.target.value)})} />
@@ -1297,7 +1291,7 @@ const Products = () => {
                   </Button>
                 </div>
                 {(editingProduct?.slabs || []).length === 0 && (
-                  <p className="text-xs text-slate-500">No slabs added. Dealer orders will use the base dealer price above.</p>
+                  <p className="text-xs text-slate-500">No slabs added. Dealer orders will use a base price of 0 until a quantity slab matches.</p>
                 )}
                 <div className="space-y-2">
                   {/* Header Row */}
