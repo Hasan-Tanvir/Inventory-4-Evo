@@ -984,13 +984,11 @@ export const api = {
     const existingOrderTransfers = allTransfers.filter(transfer => transfer.orderId === order.id);
     const oldOrderAffectsVariantStock = !!existing && existing.status === 'approved' && !existing.isQuote;
     const newOrderAffectsVariantStock = order.status === 'approved' && !order.isQuote;
-    const oldOrderTransferApplied = !!existing
-      && existing.stockTransferFrom === 'chittagong'
-      && !existing.isQuote
-      && (existing.status === 'approved' || existingOrderTransfers.length > 0);
-    const newOrderTransferApplied = order.stockTransferFrom === 'chittagong'
+    const oldOrderTransferApplied = !!existing && existingOrderTransfers.length > 0;
+    const newOrderTransferApplied = oldOrderTransferApplied
+      && order.stockTransferFrom === 'chittagong'
       && !order.isQuote
-      && order.status !== 'rejected';
+      && order.status === 'approved';
     if (oldOrderAffectsVariantStock || newOrderAffectsVariantStock || oldOrderTransferApplied || newOrderTransferApplied) {
       const variantStockDeltas = new Map<string, {
         productId: string;
@@ -1154,43 +1152,39 @@ export const api = {
           quantity: number;
         }>();
         const addVariantDelta = (
-          item: Order['items'][number],
+          productId: string,
+          variantId: string,
           location: 'dhaka' | 'chittagong',
           quantity: number
         ) => {
-          const selections = item.variantSelections?.length
-            ? item.variantSelections
-            : item.variantId
-              ? [{ variantId: item.variantId, quantity: item.quantity }]
-              : [];
-          selections.forEach(selection => {
-            const key = `${item.productId}:${selection.variantId}:${location}`;
-            const current = variantDeltaMap.get(key);
-            variantDeltaMap.set(key, {
-              productId: item.productId,
-              variantId: selection.variantId,
-              location,
-              quantity: (current?.quantity || 0) + quantity * (Number(selection.quantity) || 0)
-            });
+          const key = `${productId}:${variantId}:${location}`;
+          const current = variantDeltaMap.get(key);
+          variantDeltaMap.set(key, {
+            productId,
+            variantId,
+            location,
+            quantity: (current?.quantity || 0) + quantity
           });
         };
         if (order.status === 'approved' && !order.isQuote) {
           (order.items || []).forEach(item => {
             const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
-            addVariantDelta(item, location, 1);
+            const selections = item.variantSelections?.length
+              ? item.variantSelections
+              : item.variantId
+                ? [{ variantId: item.variantId, quantity: item.quantity }]
+                : [];
+            selections.forEach(selection => {
+              addVariantDelta(item.productId, selection.variantId, location, Number(selection.quantity) || 0);
+            });
           });
         }
-        if (order.stockTransferFrom === 'chittagong'
-          && !order.isQuote
-          && (order.status === 'approved' || orderTransfers.length > 0)) {
-          (order.items || []).forEach(item => {
-            const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
-            if (location === 'dhaka') {
-              addVariantDelta(item, 'chittagong', 1);
-              addVariantDelta(item, 'dhaka', -1);
-            }
-          });
-        }
+        orderTransfers.forEach(transfer => {
+          if (!transfer.variantId) return;
+          const quantity = Number(transfer.quantity) || 0;
+          addVariantDelta(transfer.productId, transfer.variantId, transfer.from, quantity);
+          addVariantDelta(transfer.productId, transfer.variantId, transfer.to, -quantity);
+        });
         await applyVariantStockDeltas([...variantDeltaMap.values()]);
       }
 
@@ -2074,6 +2068,135 @@ export const api = {
       }
     }
 
+    return { success: true };
+  },
+  approveOrderStockTransfer: async (id: string) => {
+    const order = await api.getOrder(id);
+    if (!order) return { success: false, message: 'Order not found' };
+    if (order.type !== 'dealer' || order.isQuote || order.status !== 'approved') {
+      return { success: false, message: 'Only approved dealer orders can be transferred.' };
+    }
+
+    const dealers = await api.getDealers();
+    const dealer = dealers.find(candidate => candidate.id === order.dealerId);
+    const dealerName = (dealer?.name || order.customerName || '').trim().toLowerCase();
+    if (dealerName !== 'dhaka office') {
+      return { success: false, message: 'This transfer is only available for the Dhaka Office dealer.' };
+    }
+
+    const transfers = await api.getProductStockTransfers();
+    if (transfers.some(transfer => transfer.orderId === order.id)) {
+      return { success: true, alreadyTransferred: true };
+    }
+
+    const products = await api.getProducts();
+    const transferLines: Array<{
+      productId: string;
+      productName: string;
+      variantId?: string;
+      quantity: number;
+      itemIndex: number;
+      selectionIndex: number;
+    }> = [];
+    for (const [itemIndex, item] of (order.items || []).entries()) {
+      const product = products.find(candidate => candidate.id === item.productId);
+      if (!product) {
+        return { success: false, message: `Product "${item.productName}" was not found.` };
+      }
+
+      const selections = item.variantSelections?.length
+        ? item.variantSelections
+        : item.variantId
+          ? [{ variantId: item.variantId, quantity: item.quantity }]
+          : [];
+      if (product.variantGroups?.length && !selections.length) {
+        return { success: false, message: `Order ${order.id} has no selected options for "${product.name}".` };
+      }
+      if (selections.length) {
+        for (const [selectionIndex, selection] of selections.entries()) {
+          if (!product.variants?.some(variant => variant.id === selection.variantId)) {
+            return { success: false, message: `An option for "${product.name}" is no longer available.` };
+          }
+          transferLines.push({
+            productId: product.id,
+            productName: item.productName,
+            variantId: selection.variantId,
+            quantity: Number(selection.quantity) || 0,
+            itemIndex,
+            selectionIndex
+          });
+        }
+      } else {
+        transferLines.push({
+          productId: product.id,
+          productName: item.productName,
+          quantity: Number(item.quantity) || 0,
+          itemIndex,
+          selectionIndex: 0
+        });
+      }
+    }
+
+    const requirements = new Map<string, { product: Product; variantId?: string; quantity: number }>();
+    for (const line of transferLines) {
+      const key = `${line.productId}:${line.variantId || 'main'}`;
+      const current = requirements.get(key);
+      const product = products.find(candidate => candidate.id === line.productId)!;
+      requirements.set(key, {
+        product,
+        variantId: line.variantId,
+        quantity: (current?.quantity || 0) + line.quantity
+      });
+    }
+    for (const requirement of requirements.values()) {
+      const available = requirement.variantId
+        ? Number(requirement.product.variants?.find(variant => variant.id === requirement.variantId)?.chittagong) || 0
+        : Number(requirement.product.chittagong) || 0;
+      if (requirement.quantity <= 0 || requirement.quantity > available) {
+        return {
+          success: false,
+          message: `Insufficient CTG stock for "${requirement.product.name}". Required: ${requirement.quantity}; available: ${available}.`
+        };
+      }
+    }
+
+    const orderTransfers: ProductStockTransfer[] = transferLines.map(line => ({
+      id: `OT-${order.id}-${line.itemIndex}-${line.selectionIndex}`,
+      transferId: order.id,
+      orderId: order.id,
+      date: order.date,
+      productId: line.productId,
+      productName: line.productName,
+      variantId: line.variantId,
+      from: 'chittagong',
+      to: 'dhaka',
+      quantity: line.quantity,
+      note: `Approved CTG-to-Dhaka transfer for order ${order.id}`
+    }));
+    for (const transfer of orderTransfers) {
+      await pushRemote(KEYS.PRODUCT_STOCK_TRANSFERS, transfer);
+    }
+
+    const variantDeltas = orderTransfers
+      .filter(transfer => transfer.variantId)
+      .flatMap(transfer => [
+        {
+          productId: transfer.productId,
+          variantId: transfer.variantId!,
+          location: 'chittagong' as const,
+          quantity: -(Number(transfer.quantity) || 0)
+        },
+        {
+          productId: transfer.productId,
+          variantId: transfer.variantId!,
+          location: 'dhaka' as const,
+          quantity: Number(transfer.quantity) || 0
+        }
+      ]);
+    await applyVariantStockDeltas(variantDeltas);
+    for (const productId of new Set(orderTransfers.map(transfer => transfer.productId))) {
+      await api.syncProductStock(productId);
+    }
     return { success: true };
   },
   rejectOrder: async (id: string) => {
