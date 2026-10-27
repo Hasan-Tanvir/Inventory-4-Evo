@@ -980,9 +980,18 @@ export const api = {
     // 2. Handle Stock Sync (only when approved)
     await pushRemote(KEYS.ORDERS, order);
 
+    const allTransfers = await api.getProductStockTransfers();
+    const existingOrderTransfers = allTransfers.filter(transfer => transfer.orderId === order.id);
     const oldOrderAffectsVariantStock = !!existing && existing.status === 'approved' && !existing.isQuote;
     const newOrderAffectsVariantStock = order.status === 'approved' && !order.isQuote;
-    if (oldOrderAffectsVariantStock || newOrderAffectsVariantStock) {
+    const oldOrderTransferApplied = !!existing
+      && existing.stockTransferFrom === 'chittagong'
+      && !existing.isQuote
+      && (existing.status === 'approved' || existingOrderTransfers.length > 0);
+    const newOrderTransferApplied = order.stockTransferFrom === 'chittagong'
+      && !order.isQuote
+      && order.status !== 'rejected';
+    if (oldOrderAffectsVariantStock || newOrderAffectsVariantStock || oldOrderTransferApplied || newOrderTransferApplied) {
       const variantStockDeltas = new Map<string, {
         productId: string;
         variantId: string;
@@ -1036,23 +1045,26 @@ export const api = {
 
       if (oldOrderAffectsVariantStock) {
         (existing.items || []).forEach(item => addVariantDelta(item, 1));
+      }
+      if (oldOrderTransferApplied) {
         addOrderTransferDelta(existing, 1);
       }
       if (newOrderAffectsVariantStock) {
         (order.items || []).forEach(item => addVariantDelta(item, -1));
+      }
+      if (newOrderTransferApplied) {
         addOrderTransferDelta(order, -1);
       }
 
       await applyVariantStockDeltas([...variantStockDeltas.values()]);
     }
 
-    const allTransfers = await api.getProductStockTransfers();
     const retainedTransfers = allTransfers.filter(transfer => transfer.orderId !== order.id);
     for (const transfer of allTransfers.filter(candidate => candidate.orderId === order.id)) {
       await removeRemote(KEYS.PRODUCT_STOCK_TRANSFERS, transfer.id);
     }
     setLocal(KEYS.PRODUCT_STOCK_TRANSFERS, retainedTransfers);
-    if (newOrderAffectsVariantStock && order.stockTransferFrom === 'chittagong') {
+    if (newOrderTransferApplied) {
       const automaticTransfers = (order.items || []).flatMap((item, itemIndex) => {
         const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
         if (location !== 'dhaka') return [];
@@ -1133,7 +1145,8 @@ export const api = {
       // 2. Revert Stock
       await removeRemote(KEYS.ORDERS, id);
 
-      if (order.status === 'approved' && !order.isQuote) {
+      const orderTransfers = (await api.getProductStockTransfers()).filter(transfer => transfer.orderId === id);
+      if ((order.status === 'approved' && !order.isQuote) || orderTransfers.length > 0) {
         const variantDeltaMap = new Map<string, {
           productId: string;
           variantId: string;
@@ -1161,18 +1174,26 @@ export const api = {
             });
           });
         };
-        (order.items || []).forEach(item => {
-          const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
-          addVariantDelta(item, location, 1);
-          if (order.stockTransferFrom === 'chittagong' && location === 'dhaka') {
-            addVariantDelta(item, 'chittagong', 1);
-            addVariantDelta(item, 'dhaka', -1);
-          }
-        });
+        if (order.status === 'approved' && !order.isQuote) {
+          (order.items || []).forEach(item => {
+            const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
+            addVariantDelta(item, location, 1);
+          });
+        }
+        if (order.stockTransferFrom === 'chittagong'
+          && !order.isQuote
+          && (order.status === 'approved' || orderTransfers.length > 0)) {
+          (order.items || []).forEach(item => {
+            const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
+            if (location === 'dhaka') {
+              addVariantDelta(item, 'chittagong', 1);
+              addVariantDelta(item, 'dhaka', -1);
+            }
+          });
+        }
         await applyVariantStockDeltas([...variantDeltaMap.values()]);
       }
 
-      const orderTransfers = (await api.getProductStockTransfers()).filter(transfer => transfer.orderId === id);
       for (const transfer of orderTransfers) {
         await removeRemote(KEYS.PRODUCT_STOCK_TRANSFERS, transfer.id);
       }
