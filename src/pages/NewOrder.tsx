@@ -53,7 +53,10 @@ const summarizeVariantSelections = (
   selections.forEach(selection => Object.entries(selection.attributes).forEach(([groupId, option]) => {
     selectedAttributes.set(groupId, option);
   }));
-  const variation = [...selectedAttributes.values()].join(' ');
+  const variation = (product.variantGroups || [])
+    .map(group => selectedAttributes.get(group.id))
+    .filter((option): option is string => !!option)
+    .join(' ');
 
   return {
     ...item,
@@ -113,6 +116,82 @@ const StockBadge = ({ dhaka, chittagong }: { dhaka: number; chittagong: number }
   </div>
 );
 
+interface VariantDropdownOption {
+  value: string;
+  label: string;
+  dhaka: number;
+  chittagong: number;
+  disabled?: boolean;
+}
+
+const VariantDropdown = ({
+  value,
+  options,
+  placeholder,
+  onChange,
+  disabled
+}: {
+  value: string;
+  options: VariantDropdownOption[];
+  placeholder: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) => {
+  const [open, setOpen] = useState(false);
+  const selectedOption = options.find(option => option.value === value);
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => setOpen(current => !current)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left text-xs outline-none focus:border-blue-400 disabled:bg-slate-50"
+      >
+        <span className="min-w-0 truncate font-semibold text-slate-800">{selectedOption?.label || placeholder}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-[100] mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                setOpen(false);
+              }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-400 hover:bg-slate-50"
+            >
+              {placeholder}
+            </button>
+          )}
+          {options.map(option => (
+            <button
+              type="button"
+              key={option.value}
+              disabled={option.disabled}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{option.label}</span>
+              <span className="flex shrink-0 items-center gap-1 text-[9px] font-medium">
+                <span className={option.dhaka > 0 ? 'text-emerald-700' : 'text-slate-400'}>DHK {option.dhaka}</span>
+                <span className="text-slate-300">/</span>
+                <span className={option.chittagong > 0 ? 'text-blue-700' : 'text-slate-400'}>CTG {option.chittagong}</span>
+              </span>
+            </button>
+          ))}
+          {!options.length && <div className="px-2 py-2 text-xs text-slate-400">No options available</div>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, updateVariantAttribute, updateIndependentVariant, removeItem, addItem }: SortableItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   
@@ -155,39 +234,35 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
 
   const renderVariantSelectors = (compact: boolean) => variantGroups.length
     ? (
-      <div className="space-y-2">
+      <div className={compact ? "space-y-1.5" : "space-y-2"}>
         {independentGroups.map(group => {
           const selection = selectedVariants.find(candidate => candidate.attributes[group.id]);
           return (
             <div className="flex items-center gap-1.5" key={group.id}>
               <label className="w-16 shrink-0 truncate text-[9px] font-bold text-slate-500" title={group.name}>{group.name}</label>
-              <select
+              <VariantDropdown
                 value={selection?.attributes[group.id] || ''}
-                onChange={e => {
+                onChange={option => {
                   const variant = selectedProduct?.variants?.find(candidate =>
-                    Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === e.target.value
+                    Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === option
                   );
                   updateIndependentVariant(index, group.id, variant?.id || '');
                 }}
                 disabled={!selectedProduct}
-                className={cn(
-                  "min-w-0 flex-1 rounded-lg border border-slate-200 bg-white outline-none focus:border-blue-400",
-                  compact ? "px-2 py-1 text-xs" : "px-2 py-1.5 text-xs"
-                )}
-                aria-label={`Select ${group.name}`}
-              >
-                <option value="">Select {group.name}</option>
-                {group.options.map(option => {
+                placeholder={`Select ${group.name}`}
+                options={group.options.map(option => {
                   const variant = selectedProduct?.variants?.find(candidate =>
                     Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === option
                   );
-                  return (
-                    <option key={option} value={option} disabled={!variant}>
-                      {option}{variant ? ` · DHK ${variant.dhaka} / CTG ${variant.chittagong}` : ' · unavailable'}
-                    </option>
-                  );
+                  return {
+                    value: option,
+                    label: option,
+                    dhaka: Number(variant?.dhaka) || 0,
+                    chittagong: Number(variant?.chittagong) || 0,
+                    disabled: !variant
+                  };
                 })}
-              </select>
+              />
             </div>
           );
         })}
@@ -199,21 +274,28 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           return (
             <div key={group.id}>
               <label className="mt-1 block text-[9px] font-bold text-slate-500">{group.name} · Combination</label>
-              <select
+              <VariantDropdown
                 value={selectedCombination?.attributes[group.id] || ''}
-                onChange={e => updateVariantAttribute(index, group.id, e.target.value)}
+                onChange={option => updateVariantAttribute(index, group.id, option)}
                 disabled={!selectedProduct}
-                className={cn(
-                  "w-full border border-slate-200 bg-white rounded-lg outline-none focus:border-blue-400 disabled:bg-slate-50",
-                  compact ? "mt-1 px-2 py-1.5 text-xs" : "mt-1.5 px-3 py-1.5 text-xs"
-                )}
-                aria-label={`${group.name} combination option`}
-              >
-                <option value="">Select {group.name}</option>
-                {[...new Set(combinationVariants.map(variant => variant.attributes[group.id]))].map(option =>
-                  <option key={option} value={option}>{option}</option>
-                )}
-              </select>
+                placeholder={`Select ${group.name}`}
+                options={[...new Set(combinationVariants.map(variant => variant.attributes[group.id]))].map(option => {
+                  const matchingVariant = combinationVariants.find(variant => {
+                    if (variant.attributes[group.id] !== option) return false;
+                    return combinationGroups.every(otherGroup =>
+                      otherGroup.id === group.id
+                      || !selectedCombination?.attributes[otherGroup.id]
+                      || variant.attributes[otherGroup.id] === selectedCombination.attributes[otherGroup.id]
+                    );
+                  }) || combinationVariants.find(variant => variant.attributes[group.id] === option);
+                  return {
+                    value: option,
+                    label: option,
+                    dhaka: Number(matchingVariant?.dhaka) || 0,
+                    chittagong: Number(matchingVariant?.chittagong) || 0
+                  };
+                })}
+              />
             </div>
           );
         })}
@@ -346,9 +428,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           : <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-sm font-black rounded-xl text-center outline-none focus:bg-white focus:border-blue-400 transition-all" />}
         </div>
         <div>
-        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">{variantGroups.length ? 'Base Price' : 'Unit Price'}</label>
+        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">Unit Price</label>
         {variantGroups.length
-          ? <input type="number" min="0" value={item.basePrice} onChange={e => updateItem(index, 'price', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-black rounded-xl text-right outline-none focus:bg-white focus:border-blue-400 transition-all" />
+          ? <input type="number" min="0" value={item.price} onChange={e => updateItem(index, 'price', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-black rounded-xl text-right outline-none focus:bg-white focus:border-blue-400 transition-all" />
           : <input
           type="number"
           value={item.price}
@@ -462,9 +544,9 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
               : <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-center outline-none" />}
           </div>
           <div>
-            <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">{variantGroups.length ? 'Base Price' : 'Price'}</label>
+            <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">Unit Price</label>
             {variantGroups.length
-              ? <input type="number" min="0" value={item.basePrice} onChange={e => updateItem(index, 'price', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-right outline-none" />
+              ? <input type="number" min="0" value={item.price} onChange={e => updateItem(index, 'price', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-right outline-none" />
               : <input
               type="number"
               value={item.price}
@@ -855,7 +937,10 @@ export default function NewOrder() {
         const allProducts = Array.isArray(products) ? products : [];
         const product = allProducts.find(p => p && p.id === updated.productId);
         if (product?.variantGroups?.length) {
-          const basePrice = field === 'price' ? Number(value) || 0 : Number(updated.basePrice) || 0;
+          const optionPrice = (updated.variantSelections || []).reduce((sum, selection) => sum + (Number(selection.price) || 0), 0);
+          const basePrice = field === 'price'
+            ? Math.max(0, (Number(value) || 0) - optionPrice)
+            : Number(updated.basePrice) || 0;
           const selectionQuantity = Math.max(1, qty);
           const selections = (updated.variantSelections || []).map(selection => ({
             ...selection,
