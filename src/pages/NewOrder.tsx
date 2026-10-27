@@ -20,6 +20,7 @@ const emptyItem = () => ({
   productId: '',
   productName: '',
   version: '',
+  variation: '',
   quantity: 1,
   price: 0,
   total: 0,
@@ -34,15 +35,15 @@ const emptyItem = () => ({
 type OrderItemRow = ReturnType<typeof emptyItem>;
 
 const StockBadge = ({ dhaka, chittagong }: { dhaka: number; chittagong: number }) => (
-  <div className="flex items-center gap-1.5 text-[10px] font-black">
+  <div className="flex shrink-0 items-center gap-1 text-[9px] font-bold">
     <span className={cn(
-      "px-1.5 py-0.5 rounded-md",
+      "px-1 py-0.5 rounded",
       dhaka > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
     )}>
       DHK:{dhaka}
     </span>
     <span className={cn(
-      "px-1.5 py-0.5 rounded-md",
+      "px-1 py-0.5 rounded",
       chittagong > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
     )}>
       CTG:{chittagong}
@@ -153,6 +154,14 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             className="w-full border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-bold rounded-xl outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 transition-all"
             placeholder="Search products..."
           />
+          <input
+            type="text"
+            value={item.variation}
+            onChange={e => updateItem(index, 'variation', e.target.value)}
+            className="mt-1.5 w-full border border-slate-200 bg-white px-3 py-1.5 text-xs rounded-lg outline-none focus:border-blue-400"
+            placeholder="Order variation (optional)"
+            aria-label="Order variation (optional)"
+          />
           {showSuggestions && (
             <div style={dropdownStyle} onMouseDown={e => e.preventDefault()}>
               <div className="max-h-72 overflow-y-auto">
@@ -165,11 +174,11 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                   className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-slate-900 truncate">{product.name}</div>
-                      {product.version && <div className="text-[10px] text-slate-500 uppercase font-black">{product.version}</div>}
-                    </div>
                     <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                    <div className="min-w-0 flex-1">
+                      <div className="whitespace-normal break-words font-bold leading-snug text-slate-900">{product.name}</div>
+                      {product.version && <div className="whitespace-normal break-words text-[10px] text-slate-500 uppercase font-black">{product.version}</div>}
+                    </div>
                   </div>
                 </button>
               )) : (
@@ -261,12 +270,12 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                   onClick={() => selectProduct(product)}
                   className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 whitespace-normal break-words"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <span className="font-medium">{product.name}</span>
-                      {product.version && <span className="text-xs text-slate-500"> {product.version}</span>}
-                    </div>
+                  <div className="flex items-start gap-2">
                     <StockBadge dhaka={product.dhaka || 0} chittagong={product.chittagong || 0} />
+                    <div className="min-w-0 flex-1">
+                      <div className="whitespace-normal break-words font-medium leading-snug">{product.name}</div>
+                      {product.version && <div className="whitespace-normal break-words text-xs text-slate-500">{product.version}</div>}
+                    </div>
                   </div>
                 </button>
               )) : (
@@ -275,6 +284,17 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             </div>
           </div>
         )}
+
+        <div>
+          <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">Variation (optional)</label>
+          <input
+            type="text"
+            value={item.variation}
+            onChange={e => updateItem(index, 'variation', e.target.value)}
+            className="w-full border border-slate-200 bg-white px-2 py-1.5 text-xs rounded-lg outline-none"
+            placeholder="Variation name"
+          />
+        </div>
 
         <div className={cn("grid gap-2", orderType === 'dealer' ? "grid-cols-4" : "grid-cols-3")}>
           <div>
@@ -523,6 +543,7 @@ export default function NewOrder() {
         productId: item.productId,
         productName: item.productName,
         version: item.version || '',
+        variation: item.variation || '',
         quantity: item.quantity || 1,
         price: item.price || 0,
         total: item.total || 0,
@@ -696,6 +717,7 @@ export default function NewOrder() {
         productId: i.productId,
         productName: i.productName,
         version: i.version,
+        variation: i.variation.trim() || undefined,
         quantity: i.quantity,
         basePrice: i.basePrice,
         price: i.price,
@@ -780,6 +802,7 @@ export default function NewOrder() {
       productId: i.productId,
       productName: i.productName,
       version: i.version,
+      variation: i.variation.trim() || undefined,
       quantity: i.quantity,
       basePrice: i.basePrice,
       price: i.price,

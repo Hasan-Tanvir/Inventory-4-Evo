@@ -81,6 +81,7 @@ export interface OrderItem {
   productId: string;
   productName: string;
   version: string;
+  variation?: string;
   quantity: number;
   basePrice?: number;
   price: number;

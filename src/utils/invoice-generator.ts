@@ -5,6 +5,16 @@ export const formatNumber = (num: number): string => {
   return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character] || character);
+}
+
 function fmtDate(dateStr: string) {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
@@ -28,13 +38,16 @@ export function generateInvoiceHtml(order: Order, isQuoteDoc: boolean, settings:
   const showExecDetails = !!settings?.execDetails && settings.execDetails.trim().toLowerCase() !== 'head of operations';
 
   const itemRows = items.map((item, i) => {
+    const variationLine = item.variation?.trim()
+      ? `<br/><span style="font-size:14px;color:#444;">Variation: ${escapeHtml(item.variation.trim())}</span>`
+      : '';
     const serialLine = showSerials && item.serialNumbers && item.serialNumbers.length > 0 
       ? `<br/><span style="font-size:14px;color:#444;font-style:italic;">S/N: ${item.serialNumbers.join(', ')}</span>` 
       : '';
     return `
       <tr>
         <td style="border:1px solid #777;padding:5px 7px;text-align:center;">${i + 1}.</td>
-        <td style="border:1px solid #777;padding:5px 7px;">${item.productName || ''}${serialLine}</td>
+        <td style="border:1px solid #777;padding:5px 7px;">${item.productName || ''}${variationLine}${serialLine}</td>
         <td style="border:1px solid #777;padding:5px 7px;text-align:right;">${formatNumber(item.price)}</td>
         <td style="border:1px solid #777;padding:5px 7px;text-align:right;">${item.quantity}</td>
         <td style="border:1px solid #777;padding:5px 7px;text-align:right;">${formatNumber(item.total)}</td>
