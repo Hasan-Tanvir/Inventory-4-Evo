@@ -37,19 +37,18 @@ export function generateInvoiceHtml(order: Order, isQuoteDoc: boolean, settings:
   const showExecName = !!settings?.execName && settings.execName.trim().toLowerCase() !== 'administrator';
   const showExecDetails = !!settings?.execDetails && settings.execDetails.trim().toLowerCase() !== 'head of operations';
 
-  const invoiceItems = items.flatMap(item => item.variantSelections?.length
-    ? item.variantSelections.map((selection, index) => ({
-        ...item,
-        variation: selection.label || item.variation,
-        price: selection.price,
-        quantity: selection.quantity,
-        total: selection.price * selection.quantity,
-        serialNumbers: index === 0 ? item.serialNumbers : []
-      }))
-    : [item]);
+  const invoiceItems = items.map(item => {
+    if (!item.variantSelections?.length) return item;
+    const attributes = new Map<string, string>();
+    item.variantSelections.forEach(selection => {
+      Object.entries(selection.attributes).forEach(([groupId, option]) => attributes.set(groupId, option));
+    });
+    const variation = item.variation?.trim() || [...attributes.values()].join(' ');
+    return { ...item, variation };
+  });
   const itemRows = invoiceItems.map((item, i) => {
     const variationLine = item.variation?.trim()
-      ? `<br/><span style="font-size:14px;color:#444;">Variation: ${escapeHtml(item.variation.trim())}</span>`
+      ? ` ${escapeHtml(item.variation.trim())}`
       : '';
     const serialLine = showSerials && item.serialNumbers && item.serialNumbers.length > 0
       ? `<br/><span style="font-size:14px;color:#444;font-style:italic;">S/N: ${escapeHtml(item.serialNumbers.join(', '))}</span>`

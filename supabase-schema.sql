@@ -84,6 +84,7 @@ create table if not exists public.orders (
   payment_reference text,
   include_price_increase_in_commission boolean not null default false,
   inventory_source text,
+  stock_transfer_from text,
   show_serials_on_invoice boolean not null default false,
   shipping jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
@@ -141,6 +142,8 @@ create table if not exists public.product_stock_transfers (
   from_location text not null,
   to_location text not null,
   quantity integer not null,
+  variant_id text,
+  order_id text,
   note text,
   created_at timestamptz not null default timezone('utc', now())
 );

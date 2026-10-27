@@ -341,13 +341,16 @@ const Products = () => {
 
   const [stockTransferForm, setStockTransferForm] = useState<{
     productId: string;
+    variantId: string;
     from: 'dhaka' | 'chittagong';
     to: 'dhaka' | 'chittagong';
     quantity: number | string;
     date: string;
     note: string;
+    id?: string;
   }>({
     productId: '',
+    variantId: '',
     from: 'chittagong',
     to: 'dhaka',
     quantity: '',
@@ -360,6 +363,8 @@ const Products = () => {
     type: 'entry' | 'transfer';
     title: string;
     rows: Array<{ label: string; value: string }>;
+    id: string;
+    orderId?: string;
   } | null>(null);
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'tile' | 'list'>(() => isMobile ? 'tile' : 'list');
@@ -766,6 +771,8 @@ const Products = () => {
     if (!product) return 0;
     return location === 'dhaka' ? (product.dhaka || 0) : (product.chittagong || 0);
   };
+  const transferProduct = products.find(product => product.id === stockTransferForm.productId);
+  const transferVariant = transferProduct?.variants?.find(variant => variant.id === stockTransferForm.variantId);
 
   const getSelectableProductsForRow = (rowIndex: number) => {
     const safeItems = Array.isArray(stockEntryItems) ? stockEntryItems : [];
@@ -861,20 +868,25 @@ const Products = () => {
     if (!stockTransferForm.productId || !stockTransferForm.quantity) return;
     const product = products.find(p => p.id === stockTransferForm.productId);
     if (!product) return;
+    if (product.variantGroups?.length && !transferVariant) {
+      showError('Select a product option to transfer.');
+      return;
+    }
 
     const result = await api.saveProductStockTransfer({
-      id: (stockTransferForm as any).id || '',
+      id: stockTransferForm.id || '',
       date: stockTransferForm.date,
       productId: stockTransferForm.productId,
       productName: product.name,
+      variantId: stockTransferForm.variantId || undefined,
       from: stockTransferForm.from,
       to: stockTransferForm.to,
       quantity: Number(stockTransferForm.quantity),
       note: stockTransferForm.note
     });
 
-    if (result && (result as any).success === false) {
-      showError((result as any).message || 'Could not transfer stock');
+    if ('success' in result && result.success === false) {
+      showError(result.message || 'Could not transfer stock');
       return;
     }
 
@@ -883,6 +895,7 @@ const Products = () => {
     setShowStockTransferDialog(false);
     setStockTransferForm({
       productId: '',
+      variantId: '',
       from: 'chittagong',
       to: 'dhaka',
       quantity: '',
@@ -912,13 +925,17 @@ const Products = () => {
       type: 'transfer',
       title: `Transfer ${transfer.transferId || transfer.id}`,
       rows: [
-        { label: 'Product', value: transfer.productName },
+        { label: transfer.variantId ? 'Product option' : 'Product', value: transfer.variantId
+          ? `${transfer.productName} - ${Object.values(products.find(product => product.id === transfer.productId)?.variants?.find(variant => variant.id === transfer.variantId)?.attributes || {}).join(' ')}`
+          : transfer.productName },
         { label: 'Date', value: formatDisplayDate(transfer.date) },
         { label: 'From -> To', value: `${transfer.from.toUpperCase()} -> ${transfer.to.toUpperCase()}` },
         { label: 'Quantity', value: String(transfer.quantity) },
+        ...(transfer.orderId ? [{ label: 'Order', value: transfer.orderId }] : []),
         { label: 'Note', value: transfer.note || '-' }
       ],
-      id: transfer.id
+      id: transfer.id,
+      orderId: transfer.orderId
     });
     setHistoryDetailOpen(true);
   };
@@ -961,13 +978,14 @@ const Products = () => {
     if (!t) return;
     setStockTransferForm({
       productId: t.productId,
+      variantId: t.variantId || '',
       from: t.from,
       to: t.to,
       quantity: String(t.quantity),
       date: t.date,
       note: t.note || '',
       id: t.id
-    } as any);
+    });
     setShowStockTransferDialog(true);
     setHistoryDetailOpen(false);
   };
@@ -1484,10 +1502,36 @@ const Products = () => {
                 <ProductSearch 
                   products={products} 
                   value={stockTransferForm.productId} 
-                  onChange={(v) => setStockTransferForm({ ...stockTransferForm, productId: v })} 
+                  onChange={(v) => setStockTransferForm({ ...stockTransferForm, productId: v, variantId: '' })}
                   placeholder="Select product to transfer..."
                 />
               </div>
+              {!!transferProduct?.variantGroups?.length && (
+                <div className="space-y-2">
+                  <Label>Product Option</Label>
+                  <Select
+                    value={stockTransferForm.variantId}
+                    onValueChange={variantId => setStockTransferForm({ ...stockTransferForm, variantId })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select option to transfer..." /></SelectTrigger>
+                    <SelectContent>
+                      {(transferProduct.variants || []).map(variant => {
+                        const optionLabel = Object.entries(variant.attributes || {})
+                          .map(([groupId, option]) => {
+                            const group = transferProduct.variantGroups?.find(candidate => candidate.id === groupId);
+                            return group?.name ? `${group.name}: ${option}` : option;
+                          })
+                          .join(' / ');
+                        return (
+                          <SelectItem key={variant.id} value={variant.id}>
+                            {optionLabel || 'Option'} (DHK {variant.dhaka} / CTG {variant.chittagong})
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>From</Label>
@@ -1511,7 +1555,7 @@ const Products = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Quantity</Label>
-                  <Input type="number" value={stockTransferForm.quantity} onChange={(e) => setStockTransferForm({ ...stockTransferForm, quantity: e.target.value })} />
+                  <Input type="number" min="1" step="1" value={stockTransferForm.quantity} onChange={(e) => setStockTransferForm({ ...stockTransferForm, quantity: e.target.value })} />
                 </div>
               </div>
               <div className="space-y-2">
@@ -1520,10 +1564,16 @@ const Products = () => {
               </div>
               {stockTransferForm.productId && (
                 <p className="text-xs text-slate-500">
-                  Available in {stockTransferForm.from === 'dhaka' ? 'Dhaka' : 'CTG'}: {getAvailableQtyByLocation(stockTransferForm.productId, stockTransferForm.from)}
+                  Available in {stockTransferForm.from === 'dhaka' ? 'Dhaka' : 'CTG'}: {
+                    transferVariant
+                      ? Number(transferVariant[stockTransferForm.from]) || 0
+                      : getAvailableQtyByLocation(stockTransferForm.productId, stockTransferForm.from)
+                  }
                 </p>
               )}
-              <Button className="w-full bg-slate-900" onClick={handleSaveStockTransfer}>Transfer Stock</Button>
+              <Button className="w-full bg-slate-900" onClick={handleSaveStockTransfer} disabled={!!transferProduct?.variantGroups?.length && !transferVariant}>
+                {stockTransferForm.id ? 'Save Transfer' : 'Transfer Stock'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -1533,16 +1583,17 @@ const Products = () => {
             <DialogHeader>
               <DialogTitle className="flex justify-between items-center pr-6">
                 <span>{historyDetail?.title || 'History Detail'}</span>
-                <div className="flex gap-2">
+                {!historyDetail?.orderId && <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => historyDetail?.type === 'entry' ? handleEditEntry(historyDetail.id) : handleEditTransfer(historyDetail.id)}>
                     <Edit className="w-3 h-3 mr-1" /> Edit
                   </Button>
                   <Button variant="destructive" size="sm" onClick={() => historyDetail?.type === 'entry' ? handleDeleteEntry(historyDetail.id) : handleDeleteTransfer(historyDetail.id)}>
                     <Trash2 className="w-3 h-3 mr-1" /> Delete
                   </Button>
-                </div>
+                </div>}
               </DialogTitle>
             </DialogHeader>
+            {historyDetail?.orderId && <p className="text-xs text-slate-500">This transfer is linked to an approved order and is managed through that order.</p>}
             <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
               {historyDetail?.rows.map((row, idx) => (
                 <div key={idx} className="rounded-md border p-2">

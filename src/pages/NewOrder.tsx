@@ -44,25 +44,24 @@ const summarizeVariantSelections = (
   product: Product,
   selections: ProductVariantSelection[]
 ): OrderItemRow => {
-  const quantity = selections.reduce((sum, selection) => sum + selection.quantity, 0);
-  const total = selections.reduce((sum, selection) => sum + selection.price * selection.quantity, 0);
-  const commission = selections.reduce((sum, selection) => sum + selection.commission, 0);
-  const variation = selections.map(selection =>
-    Object.entries(selection.attributes)
-      .map(([groupId, option]) => {
-        const group = product.variantGroups?.find(candidate => candidate.id === groupId);
-        return `${group?.name || 'Option'}: ${option}`;
-      })
-      .join(' / ')
-  ).join(', ');
+  const quantity = Number(item.quantity) || 1;
+  const basePrice = Number(item.basePrice) || 0;
+  const price = basePrice + selections.reduce((sum, selection) => sum + (Number(selection.price) || 0), 0);
+  const commissionAdjustment = selections.reduce((sum, selection) => sum + (Number(selection.commissionAdjustment) || 0), 0);
+  const commission = Math.max(0, (Number(product.commission) || 0) + commissionAdjustment) * quantity;
+  const selectedAttributes = new Map<string, string>();
+  selections.forEach(selection => Object.entries(selection.attributes).forEach(([groupId, option]) => {
+    selectedAttributes.set(groupId, option);
+  }));
+  const variation = [...selectedAttributes.values()].join(' ');
 
   return {
     ...item,
     variantSelections: selections,
     variantId: selections.length === 1 ? selections[0].variantId : '',
-    quantity: quantity || 1,
-    price: quantity ? total / quantity : product.retailPrice || 0,
-    total,
+    variantPriceMode: 'additive',
+    price,
+    total: quantity * price,
     commission,
     variation: [variation, item.legacyVariation].filter(Boolean).join(' / ')
   };
@@ -76,8 +75,8 @@ const createVariantSelection = (
   variantId: variant.id,
   attributes: { ...variant.attributes },
   label: Object.entries(variant.attributes)
-    .map(([groupId, option]) => `${product.variantGroups?.find(group => group.id === groupId)?.name || 'Option'}: ${option}`)
-    .join(' / '),
+    .map(([, option]) => option)
+    .join(' '),
   quantity,
   price: Number(variant.price) || 0,
   commission: Math.max(0, (Number(product.commission) || 0) + (Number(variant.commissionAdjustment) || 0)) * quantity,
@@ -93,7 +92,6 @@ interface SortableItemProps {
   updateItem: (index: number, field: keyof OrderItemRow, value: string | number) => void;
   updateVariantAttribute: (index: number, groupId: string, value: string) => void;
   updateIndependentVariant: (index: number, groupId: string, variantId: string) => void;
-  updateVariantSelectionQuantity: (index: number, variantId: string, quantity: number) => void;
   removeItem: (index: number) => void;
   addItem: () => void;
 }
@@ -115,7 +113,7 @@ const StockBadge = ({ dhaka, chittagong }: { dhaka: number; chittagong: number }
   </div>
 );
 
-const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, updateVariantAttribute, updateIndependentVariant, updateVariantSelectionQuantity, removeItem, addItem }: SortableItemProps) => {
+const SortableItem = ({ item, index, products, orderType, inventorySource, updateItem, updateVariantAttribute, updateIndependentVariant, removeItem, addItem }: SortableItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   
   const style = {
@@ -183,24 +181,13 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
                   const variant = selectedProduct?.variants?.find(candidate =>
                     Object.keys(candidate.attributes).length === 1 && candidate.attributes[group.id] === option
                   );
-                  const location = inventorySource === 'mixed' ? item.location : inventorySource;
                   return (
                     <option key={option} value={option} disabled={!variant}>
-                      {option}{variant ? ` · ${variant.price} · stock ${variant[location]}` : ' · unavailable'}
+                      {option}{variant ? ` · DHK ${variant.dhaka} / CTG ${variant.chittagong}` : ' · unavailable'}
                     </option>
                   );
                 })}
               </select>
-              {selection && (
-                <input
-                  type="number"
-                  min="1"
-                  value={selection.quantity}
-                  onChange={e => updateVariantSelectionQuantity(index, selection.variantId, Number(e.target.value))}
-                  className={cn("w-14 rounded border border-slate-200 px-1 py-1 text-right", compact ? "text-xs" : "text-sm")}
-                  aria-label={`Quantity for ${group.name}`}
-                />
-              )}
             </div>
           );
         })}
@@ -230,23 +217,6 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
             </div>
           );
         })}
-        {selectedCombination && (
-          <div className="flex items-center gap-2 text-[10px] text-slate-600">
-            <span className="flex-1">
-              {combinationGroups.map(group => `${group.name}: ${selectedCombination.attributes[group.id]}`).join(' / ')}
-              {' · '}{selectedCombination.price}
-            </span>
-            <label>Qty</label>
-            <input
-              type="number"
-              min="1"
-              value={selectedCombination.quantity}
-              onChange={e => selectedCombination && updateVariantSelectionQuantity(index, selectedCombination.variantId, Number(e.target.value))}
-              className="w-14 rounded border border-slate-200 px-1 py-1 text-right"
-              aria-label="Combination quantity"
-            />
-          </div>
-        )}
       </div>
     )
     : null;
@@ -372,13 +342,13 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
         <div>
           <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider">Qty</label>
         {variantGroups.length
-          ? <div className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2 text-center text-sm font-black">{selectedVariants.reduce((sum, selection) => sum + selection.quantity, 0)}</div>
+          ? <input type="number" min="1" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-sm font-black rounded-xl text-center outline-none focus:bg-white focus:border-blue-400 transition-all" />
           : <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-2 py-2 text-sm font-black rounded-xl text-center outline-none focus:bg-white focus:border-blue-400 transition-all" />}
         </div>
         <div>
-        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">Unit Price</label>
+        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider text-right">{variantGroups.length ? 'Base Price' : 'Unit Price'}</label>
         {variantGroups.length
-          ? <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-right text-sm font-black">{formatNumber(item.price)}</div>
+          ? <input type="number" min="0" value={item.basePrice} onChange={e => updateItem(index, 'price', Number(e.target.value))} className="w-full border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-black rounded-xl text-right outline-none focus:bg-white focus:border-blue-400 transition-all" />
           : <input
           type="number"
           value={item.price}
@@ -488,13 +458,13 @@ const SortableItem = ({ item, index, products, orderType, inventorySource, updat
           <div>
             <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5">Qty</label>
             {variantGroups.length
-              ? <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-center text-xs font-bold">{selectedVariants.reduce((sum, selection) => sum + selection.quantity, 0)}</div>
+              ? <input type="number" min="1" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-center outline-none" />
               : <input type="number" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-center outline-none" />}
           </div>
           <div>
-            <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">Price</label>
+            <label className="block text-[8px] font-black uppercase text-slate-400 mb-0.5 text-right">{variantGroups.length ? 'Base Price' : 'Price'}</label>
             {variantGroups.length
-              ? <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-right text-xs font-bold">{formatNumber(item.price)}</div>
+              ? <input type="number" min="0" value={item.basePrice} onChange={e => updateItem(index, 'price', Number(e.target.value))} className="w-full border border-slate-200 bg-white px-2 py-1 text-xs rounded-lg text-right outline-none" />
               : <input
               type="number"
               value={item.price}
@@ -555,6 +525,9 @@ export default function NewOrder() {
   const [orderType, setOrderType] = useState<'dealer' | 'retail'>('dealer');
   const [inventorySource, setInventorySource] = useState<'dhaka' | 'chittagong' | 'mixed'>('dhaka');
   const [selectedDealer, setSelectedDealer] = useState<Dealer | null>(null);
+  const stockTransferFrom = orderType === 'dealer' && selectedDealer?.name.trim().toLowerCase() === 'dhaka office'
+    ? 'chittagong' as const
+    : undefined;
   const [dealerSearch, setDealerSearch] = useState('');
   const [dealerSuggestions, setDealerSuggestions] = useState<Dealer[]>([]);
   const [customerName, setCustomerName] = useState('');
@@ -731,28 +704,50 @@ export default function NewOrder() {
       const allProducts = Array.isArray(effectiveProducts) ? effectiveProducts : [];
       const product = allProducts.find(p => p && p.id === item.productId);
       const variant = product?.variants?.find(candidate => candidate.id === item.variantId);
-      const variantSelections = item.variantSelections?.length
+      const savedUnitPrice = Number(item.price) || 0;
+      const savedBasePrice = Number(item.basePrice);
+      const basePrice = Number.isFinite(savedBasePrice) && item.basePrice !== undefined
+        ? savedBasePrice
+        : Math.min(Number(product?.retailPrice) || savedUnitPrice, savedUnitPrice);
+      let variantSelections = item.variantSelections?.length
         ? item.variantSelections.map(selection => ({
             ...selection,
-            label: selection.label || Object.entries(selection.attributes)
-              .map(([groupId, option]) => `${product?.variantGroups?.find(group => group.id === groupId)?.name || 'Option'}: ${option}`)
-              .join(' / ')
+            label: Object.values(selection.attributes).join(' '),
+            price: item.variantPriceMode === 'additive'
+              ? Number(selection.price) || 0
+              : Math.max(0, (Number(selection.price) || 0) - basePrice),
+            quantity: Number(item.quantity) || 1
           }))
         : variant
           ? [{
               ...createVariantSelection(product!, variant, item.quantity || 1),
-              price: item.price || Number(variant.price) || 0,
+              price: Math.max(0, (Number(item.price) || Number(variant.price) || 0) - basePrice),
               commission: Number(item.commission) || 0,
               commissionAdjustment: Number(item.commissionAdjustment ?? variant.commissionAdjustment) || 0
             }]
           : [];
-      const retailPrice = variant?.price ?? product?.retailPrice ?? (item.basePrice || item.price || 0);
+      if (item.variantPriceMode !== 'additive' && variantSelections.length) {
+        const targetAddons = Math.max(0, savedUnitPrice - basePrice);
+        const currentAddons = variantSelections.reduce((sum, selection) => sum + selection.price, 0);
+        if (currentAddons > 0) {
+          variantSelections = variantSelections.map(selection => ({
+            ...selection,
+            price: selection.price * targetAddons / currentAddons
+          }));
+        } else if (targetAddons > 0) {
+          variantSelections = variantSelections.map((selection, selectionIndex) => ({
+            ...selection,
+            price: selectionIndex === 0 ? targetAddons : 0
+          }));
+        }
+      }
+      const retailPrice = product?.retailPrice ?? (item.basePrice || item.price || 0);
       const commissionPerUnit = variant
         ? Math.max(0, (Number(product?.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
         : product && !item.variantId
           ? product.commission
           : Number(item.commission || 0) / (item.quantity || 1);
-      return {
+      const row: OrderItemRow = {
         id: Math.random().toString(36).substr(2, 9),
         productId: item.productId,
         productName: item.productName,
@@ -769,10 +764,13 @@ export default function NewOrder() {
         commission: item.commission, // Preserve the edited commission value
         commissionAdjustment: Number(item.commissionAdjustment ?? variant?.commissionAdjustment) || 0,
         serials: (Array.isArray(item.serialNumbers) ? item.serialNumbers : []).join(', '),
-        basePrice: retailPrice,
+        basePrice,
         baseCommissionPerUnit: commissionPerUnit,
         priceIncrease: Math.max(0, (item.price || 0) - retailPrice),
       };
+      return product?.variantGroups?.length
+        ? summarizeVariantSelections(row, product, variantSelections)
+        : row;
     }));
   };
 
@@ -843,7 +841,7 @@ export default function NewOrder() {
             const slab = (Array.isArray(product.slabs) ? product.slabs : []).find(s => s && qty >= s.min && qty <= s.max);
             updated.price = slab ? slab.price : product.retailPrice || 0;
           }
-          updated.basePrice = product.retailPrice;
+          updated.basePrice = product.variantGroups?.length ? updated.price : product.retailPrice;
           updated.baseCommissionPerUnit = product.commission || 0;
           updated.total = qty * updated.price;
           updated.commission = (product.commission || 0) * qty;
@@ -856,6 +854,24 @@ export default function NewOrder() {
         let price = Number(updated.price) || 0;
         const allProducts = Array.isArray(products) ? products : [];
         const product = allProducts.find(p => p && p.id === updated.productId);
+        if (product?.variantGroups?.length) {
+          const basePrice = field === 'price' ? Number(value) || 0 : Number(updated.basePrice) || 0;
+          const selectionQuantity = Math.max(1, qty);
+          const selections = (updated.variantSelections || []).map(selection => ({
+            ...selection,
+            quantity: selectionQuantity
+          }));
+          const recalculated = summarizeVariantSelections(
+            { ...updated, quantity: qty, basePrice },
+            product,
+            selections
+          );
+          return {
+            ...recalculated,
+            priceIncrease: 0,
+            baseCommissionPerUnit: Number(product.commission) || 0
+          };
+        }
         const variant = product?.variants?.find(candidate => candidate.id === updated.variantId);
         if (variant) {
           price = Number(variant.price) || 0;
@@ -902,12 +918,12 @@ export default function NewOrder() {
       const currentSelections = (item.variantSelections || []).filter(selection =>
         !combinationGroupIds.some(combinationGroupId => selection.attributes[combinationGroupId])
       );
-      if (variant) currentSelections.push(createVariantSelection(product, variant));
+      if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1));
       const updated = summarizeVariantSelections(item, product, currentSelections);
       return {
         ...updated,
         variantAttributes,
-        basePrice: variant?.price ?? product.retailPrice ?? 0,
+        basePrice: Number(item.basePrice) || product.retailPrice || 0,
         priceIncrease: 0
       };
     }));
@@ -922,29 +938,7 @@ export default function NewOrder() {
         !selection.attributes[groupId]
       );
       const variant = product.variants?.find(candidate => candidate.id === variantId);
-      if (variant) currentSelections.push(createVariantSelection(product, variant));
-      return summarizeVariantSelections(item, product, currentSelections);
-    }));
-  };
-
-  const updateVariantSelectionQuantity = (index: number, variantId: string, quantity: number) => {
-    setItems(prev => prev.map((item, itemIndex) => {
-      if (itemIndex !== index) return item;
-      const product = products.find(candidate => candidate.id === item.productId);
-      if (!product) return item;
-      const nextQuantity = Math.max(1, Number.isFinite(quantity) ? Math.floor(quantity) : 1);
-      const currentSelections = (item.variantSelections || []).map(selection => {
-        if (selection.variantId !== variantId) return selection;
-        const variant = product.variants?.find(candidate => candidate.id === variantId);
-        const commissionPerUnit = variant
-          ? Math.max(0, (Number(product.commission) || 0) + (Number(variant.commissionAdjustment) || 0))
-          : selection.commission / Math.max(1, selection.quantity);
-        return {
-          ...selection,
-          quantity: nextQuantity,
-          commission: commissionPerUnit * nextQuantity
-        };
-      });
+      if (variant) currentSelections.push(createVariantSelection(product, variant, Number(item.quantity) || 1));
       return summarizeVariantSelections(item, product, currentSelections);
     }));
   };
@@ -981,6 +975,7 @@ export default function NewOrder() {
 
     setSaving(true);
     const shouldSaveAsQuote = forceQuote || (isQuote && !editOrderId);
+    const orderStockTransferFrom = stockTransferFrom;
     const isQuoteConversion = !!(editOrderId && originalIsQuote && !shouldSaveAsQuote);
     
     // Generate new order ID: if converting quote, get next order ID, otherwise get new ID
@@ -1010,7 +1005,8 @@ export default function NewOrder() {
       for (const item of filledItems) {
         const product = allProducts.find(p => p.id === item.productId);
         if (product) {
-          const location = inventorySource === 'mixed' ? item.location : inventorySource;
+          const itemLocation = orderStockTransferFrom ? 'dhaka' : inventorySource === 'mixed' ? item.location : inventorySource;
+          const location = orderStockTransferFrom || itemLocation;
           const itemSelections = item.variantSelections || [];
           if (!product.variantGroups?.length && !itemSelections.length && !item.variantId) {
             const baseKey = `${product.id}:${location}`;
@@ -1073,7 +1069,10 @@ export default function NewOrder() {
         const available = location === 'dhaka' ? (product.dhaka || 0) : (product.chittagong || 0);
         const reservedQty = originalOrderStatus === 'approved' && !originalIsQuote
           ? (originalOrder?.items || [])
-              .filter(originalItem => originalItem.productId === product.id && originalItem.location === location)
+              .filter(originalItem =>
+                originalItem.productId === product.id
+                && (originalOrder?.stockTransferFrom || originalItem.location) === location
+              )
               .reduce((sum, originalItem) => sum + (Number(originalItem.quantity) || 0), 0)
           : 0;
         if (quantity > available + reservedQty) {
@@ -1091,7 +1090,7 @@ export default function NewOrder() {
           ? (originalOrder?.items || [])
               .filter(originalItem =>
                 originalItem.productId === product.id
-                && originalItem.location === location
+                && (originalOrder?.stockTransferFrom || originalItem.location) === location
               )
               .reduce((sum, originalItem) => {
                 const selections = originalItem.variantSelections?.length
@@ -1131,11 +1130,12 @@ export default function NewOrder() {
         variantAttributes: Object.keys(i.variantAttributes).length ? i.variantAttributes : undefined,
         commissionAdjustment: i.commissionAdjustment,
         variantSelections: i.variantSelections.length ? i.variantSelections : undefined,
+        variantPriceMode: i.variantSelections.length ? 'additive' : undefined,
         quantity: i.quantity,
         basePrice: i.basePrice,
         price: i.price,
         total: i.total,
-        location: inventorySource === 'mixed' ? i.location : inventorySource,
+        location: orderStockTransferFrom ? 'dhaka' : inventorySource === 'mixed' ? i.location : inventorySource,
         commission: i.commission,
         serialNumbers: i.serials.split(',').map(s => s.trim()).filter(Boolean),
       })),
@@ -1151,6 +1151,7 @@ export default function NewOrder() {
       partialAmount: orderType === 'retail' && retailPaymentStatus === 'partial' ? partialAmount : undefined,
       includePriceIncreaseInCommission: false,
       inventorySource,
+      stockTransferFrom: orderStockTransferFrom,
       showSerialsOnInvoice: showSerials,
     };
 
@@ -1185,13 +1186,14 @@ export default function NewOrder() {
     for (const item of order.items) {
       const product = allProducts.find(p => p.id === item.productId);
       if (product) {
+        const stockLocation = order.stockTransferFrom || item.location;
         const itemSelections = item.variantSelections || [];
         if (!product.variantGroups?.length && !itemSelections.length && !item.variantId) {
-          const baseKey = `${product.id}:${item.location}`;
+          const baseKey = `${product.id}:${stockLocation}`;
           const currentBase = baseQuantities.get(baseKey);
           baseQuantities.set(baseKey, {
             product,
-            location: item.location,
+            location: stockLocation,
             quantity: (currentBase?.quantity || 0) + (Number(item.quantity) || 0)
           });
         }
@@ -1215,12 +1217,12 @@ export default function NewOrder() {
         for (const selection of selectedVariantQuantities) {
           const variant = product.variants?.find(candidate => candidate.id === selection.variantId);
           if (!variant) return showError(`The selected option for "${item.productName}" is no longer available.`);
-          const variantKey = `${product.id}:${variant.id}:${item.location}`;
+          const variantKey = `${product.id}:${variant.id}:${stockLocation}`;
           const currentVariant = variantQuantities.get(variantKey);
           variantQuantities.set(variantKey, {
             product,
             variantId: variant.id,
-            location: item.location,
+            location: stockLocation,
             quantity: (currentVariant?.quantity || 0) + (Number(selection.quantity) || 0)
           });
         }
@@ -1277,11 +1279,12 @@ export default function NewOrder() {
       variantAttributes: Object.keys(i.variantAttributes).length ? i.variantAttributes : undefined,
       commissionAdjustment: i.commissionAdjustment,
       variantSelections: i.variantSelections.length ? i.variantSelections : undefined,
+      variantPriceMode: i.variantSelections.length ? 'additive' : undefined,
       quantity: i.quantity,
       basePrice: i.basePrice,
       price: i.price,
       total: i.total,
-      location: inventorySource === 'mixed' ? i.location : inventorySource,
+      location: stockTransferFrom ? 'dhaka' : inventorySource === 'mixed' ? i.location : inventorySource,
       commission: i.commission,
       serialNumbers: i.serials.split(',').map(s => s.trim()).filter(Boolean),
     })),
@@ -1294,6 +1297,7 @@ export default function NewOrder() {
     createdBy: api.getCurrentUser()?.id || 'unknown',
     isQuote: true,
     inventorySource,
+    stockTransferFrom,
     showSerialsOnInvoice: showSerials,
   });
 
@@ -1550,7 +1554,6 @@ export default function NewOrder() {
                           addItem={addItem}
                           updateVariantAttribute={updateVariantAttribute}
                           updateIndependentVariant={updateIndependentVariant}
-                          updateVariantSelectionQuantity={updateVariantSelectionQuantity}
                         />
                       ))}
                     </SortableContext>

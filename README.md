@@ -57,6 +57,8 @@ This version is now prepared to run on Vercel with a shared Supabase data store.
 2. Run `supabase-schema.sql` in the Supabase SQL editor.
    - For an existing database, run the additive migration `supabase/migrations/add_product_variant_groups.sql` before using configurable product options. It only adds two JSONB columns with empty-array defaults; it does not rewrite or remove existing records.
    - To remove only this feature later, first deploy the pre-feature app version, then run `supabase/migrations/rollback_product_variant_groups.sql`. This drops only the two added columns and permanently deletes their option data; back up or export that data first if you may need it.
+   - For existing databases using option-level stock transfers or automatic Dhaka Office transfers, also run `supabase/migrations/add_variant_stock_transfers.sql`. It only adds transfer metadata columns and an optional order source marker.
+   - The optional `supabase/migrations/rollback_variant_stock_transfers.sql` refuses to run while transfer/order records use those fields. Reconcile or remove this feature's records before rollback so existing stock history is not silently misinterpreted.
 3. Copy `.env.example` to `.env` and set:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`

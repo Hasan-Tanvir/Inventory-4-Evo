@@ -72,6 +72,8 @@ export interface ProductVariant {
   commissionAdjustment: number;
 }
 
+export type VariantPriceMode = 'additive';
+
 export interface ProductVariantSelection {
   variantId: string;
   attributes: Record<string, string>;
@@ -103,6 +105,8 @@ export interface ProductStockTransfer {
   from: 'dhaka' | 'chittagong';
   to: 'dhaka' | 'chittagong';
   quantity: number;
+  variantId?: string;
+  orderId?: string;
   note?: string;
 }
 
@@ -115,6 +119,7 @@ export interface OrderItem {
   variantAttributes?: Record<string, string>;
   commissionAdjustment?: number;
   variantSelections?: ProductVariantSelection[];
+  variantPriceMode?: VariantPriceMode;
   quantity: number;
   basePrice?: number;
   price: number;
@@ -159,6 +164,7 @@ export interface Order {
   paymentReference?: string;
   includePriceIncreaseInCommission?: boolean;
   inventorySource: 'dhaka' | 'chittagong' | 'mixed';
+  stockTransferFrom?: 'dhaka' | 'chittagong';
   showSerialsOnInvoice: boolean;
   shipping?: OrderShippingDetail;
 }

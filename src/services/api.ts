@@ -218,6 +218,7 @@ const getRemote = async <T>(key: string, def: T): Promise<T> => {
         paymentReference: row.payment_reference,
         includePriceIncreaseInCommission: row.include_price_increase_in_commission,
         inventorySource: row.inventory_source,
+        stockTransferFrom: row.stock_transfer_from,
         showSerialsOnInvoice: row.show_serials_on_invoice,
         shipping: row.shipping
       }));
@@ -315,6 +316,8 @@ const getRemote = async <T>(key: string, def: T): Promise<T> => {
         from: row.from_location,
         to: row.to_location,
         quantity: row.quantity,
+        variantId: row.variant_id,
+        orderId: row.order_id,
         note: row.note
       }));
     } else if (key === KEYS.RETAIL) {
@@ -491,6 +494,7 @@ const pushRemote = async (key: string, item: any) => {
         payment_reference: item.paymentReference,
         include_price_increase_in_commission: item.includePriceIncreaseInCommission,
         inventory_source: item.inventorySource,
+        stock_transfer_from: item.stockTransferFrom,
         show_serials_on_invoice: item.showSerialsOnInvoice,
         shipping: item.shipping
       };
@@ -586,6 +590,8 @@ const pushRemote = async (key: string, item: any) => {
         from_location: item.from,
         to_location: item.to,
         quantity: item.quantity,
+        variant_id: item.variantId,
+        order_id: item.orderId,
         note: item.note
       };
     } else if (key === KEYS.RETAIL) {
@@ -773,7 +779,7 @@ export const api = {
     const orders = get<Order[]>(KEYS.ORDERS, []);
 
     const pEntries = entries.filter(e => e && e.productId === productId);
-    const pTransfers = transfers.filter(t => t && t.productId === productId);
+    const pTransfers = transfers.filter(t => t && t.productId === productId && !t.variantId);
     const pOrders = orders.filter(o => o && o.status === 'approved' && !o.isQuote && o.items.some(i => i.productId === productId));
 
     let dhaka = 0;
@@ -989,15 +995,76 @@ export const api = {
           });
         });
       };
+      const addOrderTransferDelta = (orderToAdjust: Order, direction: 1 | -1) => {
+        if (orderToAdjust.stockTransferFrom !== 'chittagong') return;
+        (orderToAdjust.items || []).forEach(item => {
+          const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
+          if (location !== 'dhaka') return;
+          const selections = item.variantSelections?.length
+            ? item.variantSelections
+            : item.variantId
+              ? [{ variantId: item.variantId, quantity: item.quantity }]
+              : [];
+          selections.forEach(selection => {
+            (['chittagong', 'dhaka'] as const).forEach(location => {
+              const transferDirection = location === 'chittagong' ? direction : -direction;
+              const key = `${item.productId}:${selection.variantId}:${location}`;
+              const current = variantStockDeltas.get(key);
+              variantStockDeltas.set(key, {
+                productId: item.productId,
+                variantId: selection.variantId,
+                location,
+                quantity: (current?.quantity || 0) + transferDirection * (Number(selection.quantity) || 0)
+              });
+            });
+          });
+        });
+      };
 
       if (oldOrderAffectsVariantStock) {
         (existing.items || []).forEach(item => addVariantDelta(item, 1));
+        addOrderTransferDelta(existing, 1);
       }
       if (newOrderAffectsVariantStock) {
         (order.items || []).forEach(item => addVariantDelta(item, -1));
+        addOrderTransferDelta(order, -1);
       }
 
       await applyVariantStockDeltas([...variantStockDeltas.values()]);
+    }
+
+    const allTransfers = await api.getProductStockTransfers();
+    const retainedTransfers = allTransfers.filter(transfer => transfer.orderId !== order.id);
+    for (const transfer of allTransfers.filter(candidate => candidate.orderId === order.id)) {
+      await removeRemote(KEYS.PRODUCT_STOCK_TRANSFERS, transfer.id);
+    }
+    setLocal(KEYS.PRODUCT_STOCK_TRANSFERS, retainedTransfers);
+    if (newOrderAffectsVariantStock && order.stockTransferFrom === 'chittagong') {
+      const automaticTransfers = (order.items || []).flatMap((item, itemIndex) => {
+        const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
+        if (location !== 'dhaka') return [];
+        const selections = item.variantSelections?.length
+          ? item.variantSelections
+          : item.variantId
+            ? [{ variantId: item.variantId, quantity: item.quantity }]
+            : [{ variantId: '', quantity: item.quantity }];
+        return selections.map((selection, selectionIndex) => ({
+          id: `OT-${order.id}-${itemIndex}-${selectionIndex}`,
+          transferId: order.id,
+          orderId: order.id,
+          date: order.date,
+          productId: item.productId,
+          productName: item.productName,
+          variantId: selection.variantId || undefined,
+          from: 'chittagong' as const,
+          to: 'dhaka' as const,
+          quantity: Number(selection.quantity) || 0,
+          note: `Automatic stock transfer for approved order ${order.id}`
+        }));
+      });
+      for (const transfer of automaticTransfers) {
+        await pushRemote(KEYS.PRODUCT_STOCK_TRANSFERS, transfer);
+      }
     }
     
     // Sync stock for all products in current and previous order state
@@ -1054,21 +1121,50 @@ export const api = {
       await removeRemote(KEYS.ORDERS, id);
 
       if (order.status === 'approved' && !order.isQuote) {
-        const variantDeltas = (order.items || []).flatMap(item => {
+        const variantDeltaMap = new Map<string, {
+          productId: string;
+          variantId: string;
+          location: 'dhaka' | 'chittagong';
+          quantity: number;
+        }>();
+        const addVariantDelta = (
+          item: Order['items'][number],
+          location: 'dhaka' | 'chittagong',
+          quantity: number
+        ) => {
           const selections = item.variantSelections?.length
             ? item.variantSelections
             : item.variantId
               ? [{ variantId: item.variantId, quantity: item.quantity }]
               : [];
-          return selections.map(selection => ({
-            productId: item.productId,
-            variantId: selection.variantId,
-            location: item.location === 'dhaka' ? 'dhaka' as const : 'chittagong' as const,
-            quantity: Number(selection.quantity) || 0
-          }));
+          selections.forEach(selection => {
+            const key = `${item.productId}:${selection.variantId}:${location}`;
+            const current = variantDeltaMap.get(key);
+            variantDeltaMap.set(key, {
+              productId: item.productId,
+              variantId: selection.variantId,
+              location,
+              quantity: (current?.quantity || 0) + quantity * (Number(selection.quantity) || 0)
+            });
+          });
+        };
+        (order.items || []).forEach(item => {
+          const location = item.location === 'dhaka' ? 'dhaka' : 'chittagong';
+          addVariantDelta(item, location, 1);
+          if (order.stockTransferFrom === 'chittagong' && location === 'dhaka') {
+            addVariantDelta(item, 'chittagong', 1);
+            addVariantDelta(item, 'dhaka', -1);
+          }
         });
-        await applyVariantStockDeltas(variantDeltas);
+        await applyVariantStockDeltas([...variantDeltaMap.values()]);
       }
+
+      const orderTransfers = (await api.getProductStockTransfers()).filter(transfer => transfer.orderId === id);
+      for (const transfer of orderTransfers) {
+        await removeRemote(KEYS.PRODUCT_STOCK_TRANSFERS, transfer.id);
+      }
+      const currentTransfers = get<ProductStockTransfer[]>(KEYS.PRODUCT_STOCK_TRANSFERS, []);
+      setLocal(KEYS.PRODUCT_STOCK_TRANSFERS, currentTransfers.filter(transfer => transfer.orderId !== id));
       
       // Update local storage immediately so syncProductStock sees the deletion
       const currentOrders = get<Order[]>(KEYS.ORDERS, []);
@@ -1258,12 +1354,67 @@ export const api = {
   getProductStockTransfers: () => getRemote<ProductStockTransfer[]>(KEYS.PRODUCT_STOCK_TRANSFERS, []),
   saveProductStockTransfer: async (t: ProductStockTransfer) => {
     const transfers = await api.getProductStockTransfers();
-    let transfer = { ...t };
+    const transfer = { ...t };
     if (!transfer.id) {
       const lastTransfer = [...transfers].sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, { numeric: true, sensitivity: 'base' })).reverse()[0];
       const lastIdMatch = lastTransfer?.id?.match(/\d+/);
       const nextIdNum = lastIdMatch ? parseInt(lastIdMatch[0]) + 1 : 1;
       transfer.id = `T${String(nextIdNum).padStart(4, '0')}`;
+    }
+
+    const existing = transfers.find(candidate => candidate.id === transfer.id);
+    if (existing?.orderId) {
+      return { success: false, message: 'Order-generated transfers can only be changed by editing the order.' };
+    }
+
+    if (existing?.variantId || transfer.variantId) {
+      const quantity = Number(transfer.quantity);
+      if (transfer.variantId && (!Number.isInteger(quantity) || quantity <= 0 || transfer.from === transfer.to)) {
+        return { success: false, message: 'Choose a valid option and a positive whole-number transfer quantity.' };
+      }
+
+      const products = await api.getProducts();
+      const product = products.find(candidate => candidate.id === transfer.productId);
+      const variant = transfer.variantId
+        ? product?.variants?.find(candidate => candidate.id === transfer.variantId)
+        : undefined;
+      if (!product || (transfer.variantId && !variant)) {
+        return { success: false, message: 'The selected product option is no longer available.' };
+      }
+      const previousSameSourceQty = existing?.productId === transfer.productId
+        && existing.variantId === transfer.variantId
+        && existing.from === transfer.from
+        ? Number(existing.quantity) || 0
+        : 0;
+      const availableAtSource = variant ? Number(variant[transfer.from]) || 0 : 0;
+      if (transfer.variantId && quantity > availableAtSource + previousSameSourceQty) {
+        return { success: false, message: `Insufficient option stock in ${transfer.from === 'dhaka' ? 'Dhaka' : 'CTG'}. Available: ${availableAtSource + previousSameSourceQty}` };
+      }
+
+      const deltas = new Map<string, { productId: string; variantId: string; location: 'dhaka' | 'chittagong'; quantity: number }>();
+      const addDelta = (productId: string, variantId: string, location: 'dhaka' | 'chittagong', delta: number) => {
+        const key = `${productId}:${variantId}:${location}`;
+        const current = deltas.get(key);
+        deltas.set(key, {
+          productId,
+          variantId,
+          location,
+          quantity: (current?.quantity || 0) + delta
+        });
+      };
+      if (existing?.variantId) {
+        addDelta(existing.productId, existing.variantId, existing.from, Number(existing.quantity) || 0);
+        addDelta(existing.productId, existing.variantId, existing.to, -(Number(existing.quantity) || 0));
+      }
+      if (transfer.variantId) {
+        addDelta(transfer.productId, transfer.variantId, transfer.from, -quantity);
+        addDelta(transfer.productId, transfer.variantId, transfer.to, quantity);
+      }
+
+      await pushRemote(KEYS.PRODUCT_STOCK_TRANSFERS, transfer);
+      await applyVariantStockDeltas([...deltas.values()]);
+      await api.syncProductStock(transfer.productId);
+      return transfer;
     }
     
     // Sync with product stock
@@ -1275,10 +1426,29 @@ export const api = {
     const transfers = await api.getProductStockTransfers();
     const transfer = transfers.find(t => t.id === id);
     if (transfer) {
+      if (transfer.orderId) {
+        throw new Error('Order-generated transfers must be reversed by deleting or editing their order.');
+      }
       await removeRemote(KEYS.PRODUCT_STOCK_TRANSFERS, id);
       // Force local update for instant sync
       const current = get<ProductStockTransfer[]>(KEYS.PRODUCT_STOCK_TRANSFERS, []);
       setLocal(KEYS.PRODUCT_STOCK_TRANSFERS, current.filter(t => t.id !== id));
+      if (transfer.variantId) {
+        await applyVariantStockDeltas([
+          {
+            productId: transfer.productId,
+            variantId: transfer.variantId,
+            location: transfer.from,
+            quantity: Number(transfer.quantity) || 0
+          },
+          {
+            productId: transfer.productId,
+            variantId: transfer.variantId,
+            location: transfer.to,
+            quantity: -(Number(transfer.quantity) || 0)
+          }
+        ]);
+      }
       await api.syncProductStock(transfer.productId);
     }
   },
