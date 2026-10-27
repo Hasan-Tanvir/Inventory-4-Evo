@@ -941,12 +941,23 @@ export const api = {
   saveOrder: async (o: Order) => {
     const orders = await api.getOrders();
     const existing = orders.find(x => x.id === o.id);
-    const order = { ...o, id: o.id || `ORD-${Date.now()}` };
+    const savedDealers = o.type === 'dealer' ? await api.getDealers() : [];
+    const selectedDealer = savedDealers.find(dealer => dealer.id === o.dealerId);
+    const isDhakaOfficeOrder = o.type === 'dealer'
+      && selectedDealer?.name.trim().toLowerCase() === 'dhaka office';
+    const shouldTransferFromChittagong = isDhakaOfficeOrder || o.stockTransferFrom === 'chittagong';
+    const order = {
+      ...o,
+      id: o.id || `ORD-${Date.now()}`,
+      stockTransferFrom: shouldTransferFromChittagong ? 'chittagong' as const : undefined,
+      items: shouldTransferFromChittagong
+        ? o.items.map(item => ({ ...item, location: 'dhaka' as const }))
+        : o.items
+    };
     
     // 1. Handle Dealer Balance (only for regular/dealer orders that are approved)
     if (order.type !== 'retail' && !order.isQuote && order.status === 'approved') {
-      const dealers = await api.getDealers();
-      const dealer = dealers.find(d => d.id === order.dealerId);
+      const dealer = savedDealers.find(d => d.id === order.dealerId);
       if (dealer) {
         let adjustment = order.netTotal;
         if (existing && existing.status === 'approved') {
